@@ -322,7 +322,7 @@ export class NavigatorMeshesPanel extends NavigatorPanel
     {
         function AddMeshToNodeTree (panel, node, mesh, meshIndex, parentItem, mode)
         {
-            let meshName = GetMeshName (node.GetName (), mesh.GetName ());
+            let meshName = mesh.GetName();
             let meshInstanceId = new MeshInstanceId (node.GetId (), meshIndex);
             let meshItemIcon = (mode === MeshesPanelMode.TreeView ? 'tree_mesh' : null);
             let meshItem = new MeshItem (meshName, meshItemIcon, meshInstanceId, {
