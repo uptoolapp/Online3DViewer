@@ -3,7 +3,7 @@ import { AddDiv, CreateDiv, ShowDomElement, ClearDomElement, InsertDomElementBef
 import { CalculatePopupPositionToElementBottomRight, ShowListPopup } from './dialogs.js';
 import { MeshItem, NavigatorItemRecurse, NodeItem } from './navigatoritems.js';
 import { NavigatorPanel, NavigatorPopupButton } from './navigatorpanel.js';
-import { AddSvgIconElement, GetMaterialName, GetMeshName, GetNodeName, SetSvgIconImageElement } from './utils.js';
+import { AddSvgIconElement, GetMaterialName, GetNodeName, SetSvgIconImageElement } from './utils.js';
 import { Loc, FLoc } from '../engine/core/localization.js';
 
 const MeshesPanelMode =
