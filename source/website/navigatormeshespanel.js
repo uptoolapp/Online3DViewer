@@ -322,7 +322,11 @@ export class NavigatorMeshesPanel extends NavigatorPanel
     {
         function AddMeshToNodeTree (panel, node, mesh, meshIndex, parentItem, mode)
         {
-            let meshName = GetMeshName (node.GetName (), mesh.GetName ());
+            // let meshName = GetMeshName (node.GetName (), mesh.GetName ());
+            // Get the mesh name instead of its parent node name to match the names to our hierarchy.
+            // GetMeshName was originaly designed to deal with the case where meshes inside a node have no names.
+            // But our modified substeps exporter always gives names to meshes.
+            let meshName = mesh.GetName ();
             let meshInstanceId = new MeshInstanceId (node.GetId (), meshIndex);
             let meshItemIcon = (mode === MeshesPanelMode.TreeView ? 'tree_mesh' : null);
             let meshItem = new MeshItem (meshName, meshItemIcon, meshInstanceId, {
