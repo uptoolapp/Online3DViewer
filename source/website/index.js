@@ -1,5 +1,4 @@
 import { Loc } from '../engine/core/localization.js';
-import { AddDiv, AddDomElement } from '../engine/viewer/domutils.js';
 import { Embed } from './embed.js';
 import { Website } from './website.js';
 import { SetEventHandler, HandleEvent } from './eventhandler.js';
