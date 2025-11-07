@@ -9,22 +9,22 @@ import { CreateInlineColorCircle } from './utils.js';
 import { GetFileName, IsUrl } from '../engine/io/fileutils.js';
 import { MaterialSource, MaterialType } from '../engine/model/material.js';
 import { RGBColorToHexString } from '../engine/model/color.js';
-import { Unit } from '../engine/model/unit.js';
+import { Unit, convertUnit } from '../engine/model/unit.js';
 import { Loc } from '../engine/core/localization.js';
 
 function UnitToString (unit)
 {
     switch (unit) {
         case Unit.Millimeter:
-            return Loc ('Millimeter');
+            return Loc ('mm');
         case Unit.Centimeter:
-            return Loc ('Centimeter');
+            return Loc ('cm');
         case Unit.Meter:
-            return Loc ('Meter');
+            return Loc ('m');
         case Unit.Inch:
-            return Loc ('Inch');
+            return Loc ('in');
         case Unit.Foot:
-            return Loc ('Foot');
+            return Loc ('ft');
     }
     return Loc ('Unknown');
 }
@@ -62,12 +62,13 @@ export class SidebarDetailsPanel extends SidebarPanel
         if (triangleCount > 0) {
             this.AddProperty (table, new Property (PropertyType.Integer, Loc ('Triangles'), triangleCount));
         }
-        if (unit !== Unit.Unknown) {
-            this.AddProperty (table, new Property (PropertyType.Text, Loc ('Unit'), UnitToString (unit)));
-        }
-        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size X'), size.x));
-        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Y'), size.y));
-        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Z'), size.z));
+
+        this.AddProperty (table, new Property (PropertyType.Number, Loc (`Size X (${UnitToString (unit)})`), size.x));
+        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size X (in)'), convertUnit(size.x, unit, Unit.Inch)));
+        this.AddProperty (table, new Property (PropertyType.Number, Loc (`Size Y (${UnitToString (unit)})`), size.y));
+        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Y (in)'), convertUnit(size.y, unit, Unit.Inch)));
+        this.AddProperty (table, new Property (PropertyType.Number, Loc (`Size Z (${UnitToString (unit)})`), size.z));
+        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Z (in)'), convertUnit(size.z, unit, Unit.Inch)));
         this.AddCalculatedProperty (table, Loc ('Volume'), () => {
             if (!IsTwoManifold (object3D)) {
                 return null;
