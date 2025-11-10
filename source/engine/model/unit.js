@@ -16,6 +16,28 @@ const LENGTH_CONVERSIONS = {
     5: 0.3048,
 };
 
-export function convertUnit(value, fromUnit, toUnit) {
+const AREA_CONVERSIONS = {
+    1: 0.000001,
+    2: 0.0001,
+    3: 1,
+    4: 0.00064516,
+    5: 0.09290304,
+};
+
+const VOLUME_CONVERSIONS = {
+    1: 0.000000001,
+    2: 0.000001,
+    3: 1,
+    4: 0.0000163871,
+    5: 0.0283168466,
+};
+
+export function convertUnit({ value, fromUnit, toUnit, isArea = false, isVolume = false }) {
+    if (isArea) {
+        return (value * AREA_CONVERSIONS[fromUnit]) / AREA_CONVERSIONS[toUnit];
+    }
+    if (isVolume) {
+        return (value * VOLUME_CONVERSIONS[fromUnit]) / VOLUME_CONVERSIONS[toUnit];
+    }
     return (value * LENGTH_CONVERSIONS[fromUnit]) / LENGTH_CONVERSIONS[toUnit];
 }

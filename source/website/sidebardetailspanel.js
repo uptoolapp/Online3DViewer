@@ -64,21 +64,32 @@ export class SidebarDetailsPanel extends SidebarPanel
         }
 
         this.AddProperty (table, new Property (PropertyType.Number, Loc (`Size X (${UnitToString (unit)})`), size.x));
-        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size X (in)'), convertUnit(size.x, unit, Unit.Inch)));
+        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size X (in)'), convertUnit({ value: size.x, fromUnit: unit, toUnit: Unit.Inch })));
         this.AddProperty (table, new Property (PropertyType.Number, Loc (`Size Y (${UnitToString (unit)})`), size.y));
-        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Y (in)'), convertUnit(size.y, unit, Unit.Inch)));
+        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Y (in)'), convertUnit({ value: size.y, fromUnit: unit, toUnit: Unit.Inch })));
         this.AddProperty (table, new Property (PropertyType.Number, Loc (`Size Z (${UnitToString (unit)})`), size.z));
-        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Z (in)'), convertUnit(size.z, unit, Unit.Inch)));
-        this.AddCalculatedProperty (table, Loc ('Volume'), () => {
+        this.AddProperty (table, new Property (PropertyType.Number, Loc ('Size Z (in)'), convertUnit({ value: size.z, fromUnit: unit, toUnit: Unit.Inch })));
+        this.AddCalculatedProperty (table, Loc (`Volume (${UnitToString (unit)}³)`), () => {
             if (!IsTwoManifold (object3D)) {
                 return null;
             }
             const volume = CalculateVolume (object3D);
             return new Property (PropertyType.Number, null, volume);
         });
-        this.AddCalculatedProperty (table, Loc ('Surface'), () => {
+        this.AddCalculatedProperty (table, Loc ('Volume (in³)'), () => {
+            if (!IsTwoManifold (object3D)) {
+                return null;
+            }
+            const volume = CalculateVolume (object3D);
+            return new Property (PropertyType.Number, null, convertUnit({ value: volume, fromUnit: unit, toUnit: Unit.Inch, isVolume: true }));
+        });
+        this.AddCalculatedProperty (table, Loc (`Surface (${UnitToString (unit)}²)`), () => {
             const surfaceArea = CalculateSurfaceArea (object3D);
             return new Property (PropertyType.Number, null, surfaceArea);
+        });
+        this.AddCalculatedProperty (table, Loc ('Surface (in²)'), () => {
+            const surfaceArea = CalculateSurfaceArea (object3D);
+            return new Property (PropertyType.Number, null, convertUnit({ value: surfaceArea, fromUnit: unit, toUnit: Unit.Inch, isArea: true }));
         });
         if (object3D.PropertyGroupCount () > 0) {
             let customTable = AddDiv (this.contentDiv, 'ov_property_table ov_property_table_custom');
