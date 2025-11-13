@@ -242,10 +242,11 @@ export class MeasureTool
             if (calcResult.pointsDistance !== null) {
                 // hardcoded from millimeters to inches for now
                 const pointsDistanceInch = convertUnit({ value: calcResult.pointsDistance, fromUnit: 1, toUnit: Unit.Inch });
-                AddValue (this.panel, 'measure_distance', 'Distance of points', `${calcResult.pointsDistance.toFixed (3)} (mm) / ${pointsDistanceInch.toFixed (3)} (in)`);
+                AddValue (this.panel, 'measure_distance', 'Distance of points', `${calcResult.pointsDistance.toFixed (3)} mm / ${pointsDistanceInch.toFixed (3)} in`);
             }
             if (calcResult.parallelFacesDistance !== null) {
-                AddValue (this.panel, 'measure_distance_parallel', 'Distance of parallel faces', calcResult.parallelFacesDistance.toFixed (3));
+                const parallelFacesDistanceInch = convertUnit({ value: calcResult.parallelFacesDistance, fromUnit: 1, toUnit: Unit.Inch });
+                AddValue (this.panel, 'measure_distance_parallel', 'Distance of parallel faces', `${calcResult.parallelFacesDistance.toFixed (3)} mm / ${parallelFacesDistanceInch.toFixed (3)} in`);
             }
             if (calcResult.facesAngle !== null) {
                 let degreeValue = calcResult.facesAngle * RadDeg;
