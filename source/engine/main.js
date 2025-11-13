@@ -63,7 +63,7 @@ import { Property, PropertyGroup, PropertyToString, PropertyType } from './model
 import { GetTriangleArea, GetTetrahedronSignedVolume, CalculateVolume, CalculateSurfaceArea } from './model/quantities.js';
 import { TopologyVertex, TopologyEdge, TopologyTriangleEdge, TopologyTriangle, Topology } from './model/topology.js';
 import { Triangle } from './model/triangle.js';
-import { Unit } from './model/unit.js';
+import { convertUnit, Unit } from './model/unit.js';
 import { ParameterListBuilder, ParameterListParser, CreateUrlBuilder, CreateUrlParser, CreateModelUrlParameters, ParameterConverter } from './parameters/parameterlist.js';
 import { ModelToThreeConversionParams, ModelToThreeConversionOutput, ThreeConversionStateHandler, ThreeNodeTree, ThreeMaterialHandler, ThreeMeshMaterialHandler, ConvertModelToThreeObject, MaterialGeometryType } from './threejs/threeconverter.js';
 import { ThreeModelLoader } from './threejs/threemodelloader.js';
@@ -284,6 +284,7 @@ export {
     TopologyTriangle,
     Topology,
     Triangle,
+    convertUnit,
     Unit,
     ParameterListBuilder,
     ParameterListParser,
