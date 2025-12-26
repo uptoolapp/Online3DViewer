@@ -74,7 +74,7 @@
 		"@simonwep/pickr": "1.9.0",
 		"fflate": "0.8.2",
 		"three": "0.176.0",
-		"three-viewport-gizmo": "^2.2.0"
+		"three-viewport-gizmo": "github:Fennec-hub/three-viewport-gizmo#d1e74cb4f8e32eada81e6ac3a1da16e334b8ff99"
 	},
 	"eslintConfig": {
 		"env": {
