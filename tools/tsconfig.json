@@ -1,5 +1,5 @@
 {
-    "include": ["../build/engine/o3dv.module.js"],
+    "include": ["../build/engine/o3dv.module.js", "../source/types/**/*.d.ts"],
     "compilerOptions": {
         "allowJs": true,
         "declaration": true,

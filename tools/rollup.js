@@ -1,3 +1,5 @@
+import { nodeResolve } from '@rollup/plugin-node-resolve';
+
 export default [
     {
         input: 'source/engine/main.js',
@@ -5,6 +7,9 @@ export default [
             file: 'build/engine/o3dv.module.js',
             format: 'es'
         },
+        plugins: [
+            nodeResolve ()
+        ],
         external: [
             'fflate',
             'three',
