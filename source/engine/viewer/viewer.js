@@ -7,6 +7,7 @@ import { GetDomElementInnerDimensions } from './domutils.js';
 import { Navigation } from './navigation.js';
 import { ShadingModel } from './shadingmodel.js';
 import { ViewerModel, ViewerMainModel } from './viewermodel.js';
+import { ViewportGizmo } from 'three-viewport-gizmo';
 
 import * as THREE from 'three';
 
@@ -175,6 +176,7 @@ export class Viewer
         this.settings = {
             animationSteps : 40
         };
+        this.gizmo = null;
     }
 
     Init (canvas)
@@ -290,6 +292,11 @@ export class Viewer
         this.shadingModel.SetProjectionMode (projectionMode);
         this.cameraValidator.ForceUpdate ();
 
+        // Since camera is replaced by a new instance, need to update gizmo camera reference
+        if (this.gizmo) {
+            this.gizmo.camera = this.camera;
+        }
+
         this.AdjustClippingPlanes ();
         this.Render ();
     }
@@ -307,6 +314,9 @@ export class Viewer
         }
         this.renderer.setSize (width, height);
         this.cameraValidator.ForceUpdate ();
+        if (this.gizmo) {
+            this.gizmo.update();
+        }
         this.Render ();
     }
 
@@ -416,6 +426,11 @@ export class Viewer
 
         this.shadingModel.UpdateByCamera (navigationCamera);
         this.renderer.render (this.scene, this.camera);
+
+        if (this.gizmo) {
+            this.gizmo.cameraUpdate();
+            this.gizmo.render();
+        }
     }
 
     SetMainObject (object)
@@ -535,6 +550,30 @@ export class Viewer
             }
         });
 
+        // Initialize gizmo
+        this.gizmo = new ViewportGizmo(this.camera, this.renderer, {container: canvasElem.parentElement, ...this.GetGizmoOptions()});
+
+        // Add event listeners for gizmo interactions
+        this.gizmo.addEventListener('start', (event) => {
+            // Gizmo interaction started
+        });
+
+        this.gizmo.addEventListener('change', (event) => {
+            // navigation camera is the driver, we need to update it from gizmo camera so our view would change.
+            const gCam = this.gizmo.camera;
+            const target = this.gizmo.target;
+            const navCam = this.navigation.GetCamera();
+            navCam.eye = new Coord3D(gCam.position.x, gCam.position.y, gCam.position.z);
+            navCam.center = new Coord3D(target.x, target.y, target.z);
+            navCam.up = new Coord3D(gCam.up.x, gCam.up.y, gCam.up.z);
+            this.navigation.SetCamera(navCam);
+            this.Render();
+        });
+
+        this.gizmo.addEventListener('end', (event) => {
+            // Gizmo interaction ended
+        });
+
         this.upVector = new UpVector ();
     }
 
@@ -593,9 +632,212 @@ export class Viewer
         return url;
     }
 
+    GetGizmoOptions ()
+    {
+        return {
+            type: 'sphere',
+            size: 128,
+            placement: 'bottom-right',
+            resolution: 64,
+            lineWidth: 4,
+            radius: 1,
+            smoothness: 18,
+            animated: true,
+            speed: 1,
+            background: {
+                enabled: true,
+                color: 16777215,
+                opacity: 0.1,
+                hover: {
+                color: 16777215,
+                opacity: 0.3
+                }
+            },
+            font: {
+                family: 'sans-serif',
+                weight: 900
+            },
+            offset: {
+                top: 10,
+                left: 10,
+                bottom: 20,
+                right: 10
+            },
+            corners: {
+                enabled: false,
+                color: 15915362,
+                opacity: 1,
+                scale: 0.15,
+                radius: 1,
+                smoothness: 18,
+                hover: {
+                color: 16777215,
+                opacity: 1,
+                scale: 0.2
+                }
+            },
+            edges: {
+                enabled: false,
+                color: 15915362,
+                opacity: 1,
+                radius: 1,
+                smoothness: 18,
+                scale: 0.15,
+                hover: {
+                color: 16777215,
+                opacity: 1,
+                scale: 0.2
+                }
+            },
+            x: {
+                enabled: true,
+                color: 16725587,
+                opacity: 1,
+                scale: 0.7,
+                labelColor: 2236962,
+                line: true,
+                border: {
+                size: 0,
+                color: 14540253
+                },
+                hover: {
+                color: 16777215,
+                labelColor: 2236962,
+                opacity: 1,
+                scale: 0.7,
+                border: {
+                    size: 0,
+                    color: 14540253
+                }
+                },
+                label: 'X'
+            },
+            y: {
+                enabled: true,
+                color: 9100032,
+                opacity: 1,
+                scale: 0.7,
+                labelColor: 2236962,
+                line: true,
+                border: {
+                size: 0,
+                color: 14540253
+                },
+                hover: {
+                color: 16777215,
+                labelColor: 2236962,
+                opacity: 1,
+                scale: 0.7,
+                border: {
+                    size: 0,
+                    color: 14540253
+                }
+                },
+                label: 'Y'
+            },
+            z: {
+                enabled: true,
+                color: 2920447,
+                opacity: 1,
+                scale: 0.7,
+                labelColor: 2236962,
+                line: true,
+                border: {
+                size: 0,
+                color: 14540253
+                },
+                hover: {
+                color: 16777215,
+                labelColor: 2236962,
+                opacity: 1,
+                scale: 0.7,
+                border: {
+                    size: 0,
+                    color: 14540253
+                }
+                },
+                label: 'Z'
+            },
+            nx: {
+                line: false,
+                scale: 0.45,
+                hover: {
+                scale: 0.5,
+                color: 16777215,
+                labelColor: 2236962,
+                opacity: 1,
+                border: {
+                    size: 0,
+                    color: 14540253
+                }
+                },
+                label: '',
+                enabled: true,
+                color: 16725587,
+                opacity: 1,
+                labelColor: 2236962,
+                border: {
+                size: 0,
+                color: 14540253
+                }
+            },
+            ny: {
+                line: false,
+                scale: 0.45,
+                hover: {
+                scale: 0.5,
+                color: 16777215,
+                labelColor: 2236962,
+                opacity: 1,
+                border: {
+                    size: 0,
+                    color: 14540253
+                }
+                },
+                label: '',
+                enabled: true,
+                color: 9100032,
+                opacity: 1,
+                labelColor: 2236962,
+                border: {
+                size: 0,
+                color: 14540253
+                }
+            },
+            nz: {
+                line: false,
+                scale: 0.45,
+                hover: {
+                scale: 0.5,
+                color: 16777215,
+                labelColor: 2236962,
+                opacity: 1,
+                border: {
+                    size: 0,
+                    color: 14540253
+                }
+                },
+                label: '',
+                enabled: true,
+                color: 2920447,
+                opacity: 1,
+                labelColor: 2236962,
+                border: {
+                size: 0,
+                color: 14540253
+                }
+            },
+            isSphere: true
+        };
+    }
+
     Destroy ()
     {
         this.Clear ();
+        if (this.gizmo) {
+            this.gizmo.dispose();
+            this.gizmo = null;
+        }
         this.renderer.dispose ();
     }
 }
