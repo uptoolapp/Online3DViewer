@@ -1,6 +1,9 @@
 {
-	"name": "online-3d-viewer",
+	"name": "@uptoolapp/online-3d-viewer",
 	"version": "0.16.0",
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
+	},
 	"description": "Online 3D Viewer",
 	"license": "MIT",
 	"type": "module",
