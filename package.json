@@ -1,6 +1,6 @@
 {
 	"name": "@uptoolapp/online-3d-viewer",
-	"version": "0.18.0",
+	"version": "uptoolapp-0.0.5",
 	"publishConfig": {
 		"registry": "https://npm.pkg.github.com"
 	},
@@ -8,7 +8,7 @@
 	"license": "MIT",
 	"type": "module",
 	"main": "./build/engine/o3dv.module.js",
-	"repository": "github:kovacsv/Online3DViewer",
+	"repository": "github:uptoolapp/Online3DViewer",
 	"keywords": [
 		"3d",
 		"viewer",
