@@ -36,6 +36,7 @@
 		"build/engine/o3dv.min.js",
 		"build/engine/o3dv.module.js",
 		"build/engine/o3dv.module.d.ts",
+		"build/package/website/*",
 		"source/engine/*",
 		"website/assets/envmaps/*"
 	],
