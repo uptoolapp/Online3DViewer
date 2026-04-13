@@ -133,13 +133,15 @@ export function CreateOcctWorker (worker)
 
 export function LoadExternalLibrary (libraryName)
 {
-	if (libraryName === 'rhino3dm') {
-		return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/rhino3dm@8.17.0/rhino3dm.min.js');
-	} else if (libraryName === 'webifc') {
-		return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/web-ifc@0.0.68/web-ifc-api-iife.js');
-	} else if (libraryName === 'draco3d') {
-		return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/draco3d@1.5.7/draco_decoder_nodejs.min.js');
-	} else {
-		return null;
-	}
+	// if (libraryName === 'rhino3dm') {
+	// 	return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/rhino3dm@8.17.0/rhino3dm.min.js');
+	// } else if (libraryName === 'webifc') {
+	// 	return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/web-ifc@0.0.68/web-ifc-api-iife.js');
+	// } else if (libraryName === 'draco3d') {
+	// 	return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/draco3d@1.5.7/draco_decoder_nodejs.min.js');
+	// } else {
+	// 	return null;
+	// }
+	// DO NOT IMPORT ANY EXTERNAL library; we don't need the support for these three file formats anyway
+	return null;
 }
