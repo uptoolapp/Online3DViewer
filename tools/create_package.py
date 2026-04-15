@@ -21,7 +21,6 @@ def CreateWebsite (rootDir, websiteDir, version, testBuild):
 	shutil.copy2 (os.path.join (rootDir, 'website', 'robots.txt'), websiteDir)
 	shutil.copytree (os.path.join (rootDir, 'build', 'website'), os.path.join (websiteDir, 'o3dv'))
 	shutil.copytree (os.path.join (rootDir, 'website', 'assets'), os.path.join (websiteDir, 'assets'))
-	shutil.copytree (os.path.join (rootDir, 'assets', 'libs'), os.path.join (websiteDir, 'assets', 'libs'))
 	shutil.copytree (os.path.join (rootDir, 'website', 'info'), os.path.join (websiteDir, 'info'))
 
 	pluginFiles = []
@@ -84,7 +83,7 @@ def CreateEnginePackage (rootDir, engineDir, websiteDir):
 				zip.write (os.path.join (filePath, fileInDir), 'envmaps/' + file + '/' + fileInDir)
 		else:
 			zip.write (filePath, 'envmaps/' + file)
-	occtSrcDir = os.path.join (rootDir, 'assets', 'libs', 'occt-import-js')
+	occtSrcDir = os.path.join (rootDir, 'build', 'engine', 'assets', 'libs', 'occt-import-js')
 	for file in os.listdir (occtSrcDir):
 		filePath = os.path.join (occtSrcDir, file)
 		if os.path.isfile (filePath):
