@@ -41,7 +41,6 @@
 		"website/assets/envmaps/*"
 	],
 	"scripts": {
-		"postinstall": "node -e \"require('fs').cpSync('node_modules/occt-import-js/dist','website/assets/libs/occt-import-js',{recursive:true})\"",
 		"start": "npm run build_website_dev && http-server",
 		"test": "mocha test",
 		"lint": "eslint source",
@@ -53,11 +52,12 @@
 		"create_package_test": "npm run generate_docs && npm run build_engine && npm run build_engine_module && npm run build_website && run-python3 tools/create_package.py test",
 		"generate_docs": "run-python3 tools/generate_docs.py",
 		"build_dev": "npm run build_engine_dev && npm run build_website_dev",
+		"copy_vendor_libs": "node -e \"require('fs').cpSync('node_modules/occt-import-js/dist','assets/libs/occt-import-js',{recursive:true})\"",
 		"build_engine_dev": "npm run update_engine_exports && esbuild source/engine/main.js --bundle --minify --global-name=OV --sourcemap --outfile=build/engine_dev/o3dv.min.js",
 		"build_engine": "npm run update_engine_exports && esbuild source/engine/main.js --bundle --minify --global-name=OV --outfile=build/engine/o3dv.min.js",
 		"build_engine_module": "npm run update_engine_exports && rollup --config tools/rollup.js && tsc --project tools/tsconfig.json",
-		"build_website_dev": "esbuild source/website/index.js --bundle --minify --global-name=OV --sourcemap --loader:.ttf=file --loader:.woff=file --loader:.svg=file --outfile=build/website_dev/o3dv.website.min.js",
-		"build_website": "esbuild source/website/index.js --bundle --minify --global-name=OV --loader:.ttf=file --loader:.woff=file --loader:.svg=file --outfile=build/website/o3dv.website.min.js",
+		"build_website_dev": "npm run copy_vendor_libs && esbuild source/website/index.js --bundle --minify --global-name=OV --sourcemap --loader:.ttf=file --loader:.woff=file --loader:.svg=file --outfile=build/website_dev/o3dv.website.min.js",
+		"build_website": "npm run copy_vendor_libs && esbuild source/website/index.js --bundle --minify --global-name=OV --loader:.ttf=file --loader:.woff=file --loader:.svg=file --outfile=build/website/o3dv.website.min.js",
 		"update_engine_exports": "run-python3 tools/update_engine_exports.py"
 	},
 	"devDependencies": {

@@ -111,7 +111,7 @@ export function CreateOcctWorker (worker)
 			return;
 		}
 
-		let baseUrl = new URL ('assets/libs/occt-import-js/', document.baseURI).href;
+		let baseUrl = new URL ('../assets/libs/occt-import-js/', document.baseURI).href;
 		fetch (baseUrl + 'occt-import-js-worker.js')
 			.then ((response) => {
 				if (!response.ok) {
