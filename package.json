@@ -41,6 +41,7 @@
 		"website/assets/envmaps/*"
 	],
 	"scripts": {
+		"postinstall": "node -e \"require('fs').cpSync('node_modules/occt-import-js/dist','website/assets/libs/occt-import-js',{recursive:true})\"",
 		"start": "npm run build_website_dev && http-server",
 		"test": "mocha test",
 		"lint": "eslint source",
@@ -77,6 +78,7 @@
 	"dependencies": {
 		"@simonwep/pickr": "1.9.0",
 		"fflate": "0.8.2",
+		"occt-import-js": "^0.0.22",
 		"three": "0.176.0"
 	},
 	"eslintConfig": {

@@ -1,7 +1,6 @@
 import { IsLower } from '../geometry/geometry.js';
 import { PhongMaterial } from '../model/material.js';
 import { RGBColor, IntegerToHexString } from '../model/color.js';
-import { LoadExternalLibraryFromUrl } from '../io/externallibs.js';
 
 export function NameFromLine (line, startIndex, commentChar)
 {
@@ -112,7 +111,7 @@ export function CreateOcctWorker (worker)
 			return;
 		}
 
-		let baseUrl = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.22/dist/';
+		let baseUrl = new URL ('assets/libs/occt-import-js/', document.baseURI).href;
 		fetch (baseUrl + 'occt-import-js-worker.js')
 			.then ((response) => {
 				if (!response.ok) {
@@ -133,13 +132,15 @@ export function CreateOcctWorker (worker)
 
 export function LoadExternalLibrary (libraryName)
 {
-	if (libraryName === 'rhino3dm') {
-		return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/rhino3dm@8.17.0/rhino3dm.min.js');
-	} else if (libraryName === 'webifc') {
-		return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/web-ifc@0.0.68/web-ifc-api-iife.js');
-	} else if (libraryName === 'draco3d') {
-		return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/draco3d@1.5.7/draco_decoder_nodejs.min.js');
-	} else {
-		return null;
-	}
+	// if (libraryName === 'rhino3dm') {
+	// 	return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/rhino3dm@8.17.0/rhino3dm.min.js');
+	// } else if (libraryName === 'webifc') {
+	// 	return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/web-ifc@0.0.68/web-ifc-api-iife.js');
+	// } else if (libraryName === 'draco3d') {
+	// 	return LoadExternalLibraryFromUrl ('https://cdn.jsdelivr.net/npm/draco3d@1.5.7/draco_decoder_nodejs.min.js');
+	// } else {
+	// 	return null;
+	// }
+	// DO NOT IMPORT ANY EXTERNAL library; we don't need the support for these three file formats anyway
+	return null;
 }
