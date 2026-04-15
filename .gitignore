@@ -2,4 +2,3 @@ build/*
 plugins/*
 node_modules
 __pycache__
-website/assets/libs

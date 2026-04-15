@@ -103,6 +103,14 @@ export class ColorToMaterialConverter
 
 let occtWorkerUrl = null;
 
+// Capture the URL of the script that loaded this bundle so we can locate
+// companion assets (occt-import-js wasm/js/worker) relative to it, regardless
+// of where the bundle is deployed (site root, subpath, npm consumer, etc.).
+let occtScriptUrl = null;
+if (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) {
+	occtScriptUrl = document.currentScript.src;
+}
+
 export function CreateOcctWorker (worker)
 {
 	return new Promise ((resolve, reject) => {
@@ -111,7 +119,8 @@ export function CreateOcctWorker (worker)
 			return;
 		}
 
-		let baseUrl = new URL ('assets/libs/occt-import-js/', document.baseURI).href;
+		let baseRef = occtScriptUrl || document.baseURI;
+		let baseUrl = new URL ('assets/libs/occt-import-js/', baseRef).href;
 		fetch (baseUrl + 'occt-import-js-worker.js')
 			.then ((response) => {
 				if (!response.ok) {
