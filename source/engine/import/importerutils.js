@@ -104,11 +104,38 @@ export class ColorToMaterialConverter
 let occtWorkerUrl = null;
 
 // Capture the URL of the script that loaded this bundle so we can locate
-// companion assets (occt-import-js wasm/js/worker) relative to it, regardless
-// of where the bundle is deployed (site root, subpath, npm consumer, etc.).
+// companion assets (occt-import-js wasm/js/worker) relative to it. This works
+// when the bundle is loaded via a classic <script src="..."> tag (e.g. the
+// full website deployment). It does NOT work when the engine is imported as
+// an ES module (`import * as OV from 'online-3d-viewer'`) — bundlers inline
+// the module into the consumer's bundle, and `document.currentScript` is
+// null during ES module evaluation. In that case the consumer must call
+// `SetExternalLibLocation('occt-import-js', url)` before loading a model
+// that needs occt (STEP/IGES/BRep/FCStd).
 let occtScriptUrl = null;
 if (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) {
 	occtScriptUrl = document.currentScript.src;
+}
+
+let externalLibLocations = {};
+
+/**
+ * Override the URL where companion asset files for an external library can be
+ * fetched at runtime. Required when importing the engine as an ES module,
+ * because the engine cannot auto-locate asset files from inside a bundle.
+ *
+ * Currently supports `occt-import-js` (STEP/IGES/BRep/FCStd formats). The URL
+ * should be a directory URL (trailing slash recommended) containing the three
+ * files from `node_modules/occt-import-js/dist/`:
+ * `occt-import-js-worker.js`, `occt-import-js.js`, `occt-import-js.wasm`.
+ *
+ * @param {string} libraryName Library identifier (e.g. `'occt-import-js'`).
+ * @param {string} url Absolute or root-relative URL of the directory that
+ * contains the library's companion files.
+ */
+export function SetExternalLibLocation (libraryName, url)
+{
+	externalLibLocations[libraryName] = url;
 }
 
 export function CreateOcctWorker (worker)
@@ -119,8 +146,19 @@ export function CreateOcctWorker (worker)
 			return;
 		}
 
-		let baseRef = occtScriptUrl || document.baseURI;
-		let baseUrl = new URL ('assets/libs/occt-import-js/', baseRef).href;
+		let baseUrl;
+		if (externalLibLocations['occt-import-js']) {
+			// Explicit override from consumer (required for ES-module imports).
+			baseUrl = new URL (externalLibLocations['occt-import-js'], document.baseURI).href;
+			if (!baseUrl.endsWith ('/')) {
+				baseUrl += '/';
+			}
+		} else {
+			// Auto-locate relative to the <script src> that loaded this bundle,
+			// falling back to the page base URI when that's unavailable (ES modules).
+			let baseRef = occtScriptUrl || document.baseURI;
+			baseUrl = new URL ('assets/libs/occt-import-js/', baseRef).href;
+		}
 		fetch (baseUrl + 'occt-import-js-worker.js')
 			.then ((response) => {
 				if (!response.ok) {
