@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="content-type" content="text/html;charset=utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+
+	<title>Online 3D Viewer</title>
+
+	<script type="text/javascript" src="../build/engine_dev/o3dv.min.js"></script>
+
+    <script type='text/javascript'>
+        window.addEventListener ('load', () => {
+            let parentDiv = document.getElementById ('viewer');
+            let statusDiv = document.getElementById ('status');
+            let hoverDiv = document.getElementById ('hover');
+            let modeSelect = document.getElementById ('mode');
+            let strainBuffer = null;
+            let modelLoaded = false;
+
+            let viewer = new OV.EmbeddedViewer (parentDiv, {
+                backgroundColor : new OV.RGBAColor (255, 255, 255, 255),
+                edgeSettings : new OV.EdgeSettings (true, new OV.RGBColor (0, 0, 0), 30),
+                onModelLoaded : () => {
+                    modelLoaded = true;
+                    ShowStrain ();
+                }
+            });
+
+            function ShowStrain ()
+            {
+                if (!modelLoaded || strainBuffer === null) {
+                    return;
+                }
+                let params = new OV.SurfaceStrainParams ();
+                if (document.getElementById ('relative').checked) {
+                    params.colorRange = OV.SurfaceStrainColorRange.Relative;
+                }
+                statusDiv.textContent = 'Mapping...';
+                let start = performance.now ();
+                viewer.ShowSurfaceStrain (strainBuffer, params).then ((result) => {
+                    if (!result.ok) {
+                        statusDiv.textContent = 'Not shown: ' + result.reason;
+                        return;
+                    }
+                    let mapping = result.mapping;
+                    statusDiv.textContent = 'Relative vibration strain at ' + (result.header.reference_acceleration_m_s2 / 9.80665).toFixed (0) + ' g, ' +
+                        result.header.element_type + ', unit ' + OV.SurfaceStrainUnitToString (result.unit) + ', ' +
+                        mapping.vertexCount + ' vertices, ' + mapping.failedCount + ' failed' + (mapping.capped ? ', capped' : '') +
+                        ', ' + Math.round (performance.now () - start) + ' ms';
+                    modeSelect.innerHTML = '';
+                    modeSelect.add (new Option ('All modes', ''));
+                    result.header.modes.forEach ((mode, index) => {
+                        modeSelect.add (new Option ((index + 1) + ': ' + mode.frequency_hz.toFixed (1) + ' Hz', (index + 1).toString ()));
+                    });
+                });
+            }
+
+            document.getElementById ('model').addEventListener ('change', (ev) => {
+                modelLoaded = false;
+                viewer.LoadModelFromFileList (Array.from (ev.target.files));
+            });
+            document.getElementById ('strain').addEventListener ('change', (ev) => {
+                ev.target.files[0].arrayBuffer ().then ((buffer) => {
+                    strainBuffer = buffer;
+                    ShowStrain ();
+                });
+            });
+            document.getElementById ('relative').addEventListener ('change', ShowStrain);
+            document.getElementById ('clear').addEventListener ('click', () => {
+                viewer.ClearSurfaceStrain ();
+                statusDiv.textContent = 'Cleared';
+            });
+            modeSelect.addEventListener ('change', () => {
+                let mode = modeSelect.value === '' ? null : parseInt (modeSelect.value, 10);
+                viewer.GetViewer ().SetSurfaceStrainHighlightedMode (mode);
+            });
+            parentDiv.addEventListener ('mousemove', (ev) => {
+                let rect = parentDiv.getBoundingClientRect ();
+                let value = viewer.GetViewer ().GetSurfaceStrainUnderMouse ({ x : ev.clientX - rect.left, y : ev.clientY - rect.top });
+                if (value === null) {
+                    hoverDiv.textContent = '';
+                    return;
+                }
+                hoverDiv.textContent = value.microstrain.toFixed (2) + ' µε, mode ' + value.mode + (value.frequencyHz !== null ? ' (' + value.frequencyHz.toFixed (1) + ' Hz)' : '');
+            });
+        });
+    </script>
+
+    <style>
+        body { font-family: sans-serif; font-size: 14px; }
+        #viewer { width: 960px; height: 600px; border: 1px solid #eeeeee; }
+        .row { margin: 6px 0px; }
+    </style>
+</head>
+
+<body>
+    <div class="row">
+        STEP <input type="file" id="model" accept=".stp,.step">
+        surface_strain.bin <input type="file" id="strain" accept=".bin">
+        <label><input type="checkbox" id="relative"> relative range</label>
+        <select id="mode"></select>
+        <button id="clear">Clear</button>
+    </div>
+    <div class="row" id="status"></div>
+    <div class="row" id="hover">&nbsp;</div>
+    <div id="viewer"></div>
+</body>
+
+</html>

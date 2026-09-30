@@ -65,6 +65,13 @@ import { TopologyVertex, TopologyEdge, TopologyTriangleEdge, TopologyTriangle, T
 import { Triangle } from './model/triangle.js';
 import { convertUnit, Unit } from './model/unit.js';
 import { ParameterListBuilder, ParameterListParser, CreateUrlBuilder, CreateUrlParser, CreateModelUrlParameters, ParameterConverter } from './parameters/parameterlist.js';
+import { SurfaceStrainParams, SurfaceStrainResult, PrepareSurfaceStrain } from './surfacestrain/surfacestrain.js';
+import { SurfaceStrainColorScale, SurfaceStrainColorRange, SurfaceStrainAbsoluteLog10Low, SurfaceStrainAbsoluteLog10High, SurfaceStrainMissingColor, SurfaceStrainDimmedColor } from './surfacestrain/surfacestraincolor.js';
+import { SurfaceStrainData, DecodeSurfaceStrain } from './surfacestrain/surfacestraindecoder.js';
+import { SurfaceStrainFrameResult, CheckSurfaceStrainFrameAtScale, MatchSurfaceStrainFrame, IsSurfaceStrainSourceFile } from './surfacestrain/surfacestrainframe.js';
+import { RefinementBudget, RefinedTriangles, RefineTriangles } from './surfacestrain/surfacestrainrefine.js';
+import { SurfaceStrainSample, SurfaceStrainIndex, SurfaceStrainMeshResult, SurfaceStrainMapping, SurfaceStrainMappingParams, MapSurfaceStrainToModel } from './surfacestrain/surfacestrainsampler.js';
+import { SurfaceStrainGeometry, SurfaceStrainUnitToString, GetMetreToUnitScale, ConvertSurfaceStrainToUnit, SurfaceStrainUnitCandidates } from './surfacestrain/surfacestrainunits.js';
 import { ModelToThreeConversionParams, ModelToThreeConversionOutput, ThreeConversionStateHandler, ThreeNodeTree, ThreeMaterialHandler, ThreeMeshMaterialHandler, ConvertModelToThreeObject, MaterialGeometryType } from './threejs/threeconverter.js';
 import { ThreeModelLoader } from './threejs/threemodelloader.js';
 import { ThreeColorConverter, ThreeLinearToSRGBColorConverter, ThreeSRGBToLinearColorConverter, HasHighpDriverIssue, GetShadingType, ConvertThreeColorToColor, ConvertColorToThreeColor, ConvertThreeGeometryToMesh, CreateHighlightMaterial, CreateHighlightMaterials, DisposeThreeObjects, GetLineSegmentsProjectedDistance, ShadingType } from './threejs/threeutils.js';
@@ -75,6 +82,7 @@ import { MouseInteraction, TouchInteraction, ClickDetector, Navigation, Navigati
 import { EnvironmentSettings, ShadingModel } from './viewer/shadingmodel.js';
 import { CameraValidator, UpVector, Viewer, GetDefaultCamera, TraverseThreeObject, GetShadingTypeOfObject } from './viewer/viewer.js';
 import { ViewerModel, EdgeSettings, ViewerMainModel, SetThreeMeshPolygonOffset, IntersectionMode } from './viewer/viewermodel.js';
+import { ViewerSurfaceStrain } from './viewer/viewersurfacestrain.js';
 
 export {
     IsDefined,
@@ -293,6 +301,35 @@ export {
     CreateUrlParser,
     CreateModelUrlParameters,
     ParameterConverter,
+    SurfaceStrainParams,
+    SurfaceStrainResult,
+    PrepareSurfaceStrain,
+    SurfaceStrainColorScale,
+    SurfaceStrainColorRange,
+    SurfaceStrainAbsoluteLog10Low,
+    SurfaceStrainAbsoluteLog10High,
+    SurfaceStrainMissingColor,
+    SurfaceStrainDimmedColor,
+    SurfaceStrainData,
+    DecodeSurfaceStrain,
+    SurfaceStrainFrameResult,
+    CheckSurfaceStrainFrameAtScale,
+    MatchSurfaceStrainFrame,
+    IsSurfaceStrainSourceFile,
+    RefinementBudget,
+    RefinedTriangles,
+    RefineTriangles,
+    SurfaceStrainSample,
+    SurfaceStrainIndex,
+    SurfaceStrainMeshResult,
+    SurfaceStrainMapping,
+    SurfaceStrainMappingParams,
+    MapSurfaceStrainToModel,
+    SurfaceStrainGeometry,
+    SurfaceStrainUnitToString,
+    GetMetreToUnitScale,
+    ConvertSurfaceStrainToUnit,
+    SurfaceStrainUnitCandidates,
     ModelToThreeConversionParams,
     ModelToThreeConversionOutput,
     ThreeConversionStateHandler,
@@ -360,5 +397,6 @@ export {
     EdgeSettings,
     ViewerMainModel,
     SetThreeMeshPolygonOffset,
-    IntersectionMode
+    IntersectionMode,
+    ViewerSurfaceStrain
 };

@@ -28,6 +28,7 @@ import exporter_test from './tests/exporter_test.js';
 import exportimport_test from './tests/exportimport_test.js';
 import property_test from './tests/property_test.js';
 import parameterlist_test from './tests/parameterlist_test.js';
+import surfacestrain_test from './tests/surfacestrain_test.js';
 
 process.chdir (path.resolve ());
 SetGlobals ();
@@ -58,3 +59,4 @@ exporter_test ();
 exportimport_test ();
 property_test ();
 parameterlist_test ();
+surfacestrain_test ();

@@ -11,6 +11,7 @@ export class Mesh extends ModelObject3D
         this.uvs = [];
         this.lines = [];
         this.triangles = [];
+        this.brepFaces = [];
     }
 
     VertexCount ()
@@ -162,6 +163,16 @@ SetNormal (index, normal)
         }
     }
 
+    GetBrepFaces ()
+    {
+        return this.brepFaces;
+    }
+
+    SetBrepFaces (brepFaces)
+    {
+        this.brepFaces = brepFaces;
+    }
+
     Clone ()
     {
         let cloned = new Mesh ();
@@ -198,6 +209,8 @@ SetNormal (index, normal)
             let triangle = this.GetTriangle (i);
             cloned.AddTriangle (triangle.Clone ());
         }
+
+        cloned.SetBrepFaces (this.brepFaces.map ((face) => ({ first : face.first, last : face.last })));
 
         return cloned;
     }

@@ -5,6 +5,7 @@ import { ImportErrorCode, ImportSettings } from '../import/importer.js';
 import { TransformFileHostUrls } from '../io/fileutils.js';
 import { ParameterConverter } from '../parameters/parameterlist.js';
 import { ThreeModelLoader } from '../threejs/threemodelloader.js';
+import { PrepareSurfaceStrain, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
 import { Viewer } from './viewer.js';
 import { EnvironmentSettings } from './shadingmodel.js';
 import { Loc } from '../core/localization.js';
@@ -203,6 +204,43 @@ export class EmbeddedViewer
     GetModel ()
     {
         return this.model;
+    }
+
+    /**
+     * Paints the vibration strain of a surface_strain.bin onto the loaded model. The artifact is in
+     * metres, it is converted to the model's unit and checked against the model's bounding box
+     * first. If it doesn't belong to the model, nothing is shown.
+     * @param {ArrayBuffer} buffer Content of surface_strain.bin.
+     * @param {SurfaceStrainParams} [params] Parameters.
+     * @returns {Promise<SurfaceStrainResult>} Resolves with ok false and a reason on failure.
+     */
+    ShowSurfaceStrain (buffer, params)
+    {
+        return new Promise ((resolve) => {
+            this.viewer.ClearSurfaceStrain ();
+            if (this.model === null) {
+                let result = new SurfaceStrainResult ();
+                result.reason = 'no model is loaded';
+                resolve (result);
+                return;
+            }
+            // Let the browser render before the mapping blocks the main thread.
+            setTimeout (() => {
+                let result = PrepareSurfaceStrain (this.model, buffer, params);
+                if (result.ok) {
+                    this.viewer.SetSurfaceStrain (result.mapping, result.header, result.colorScale);
+                }
+                resolve (result);
+            }, 0);
+        });
+    }
+
+    /**
+     * Removes the surface strain and shows the model's own colors again.
+     */
+    ClearSurfaceStrain ()
+    {
+        this.viewer.ClearSurfaceStrain ();
     }
 
     /**
