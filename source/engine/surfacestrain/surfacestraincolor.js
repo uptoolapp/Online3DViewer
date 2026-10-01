@@ -103,6 +103,10 @@ export class SurfaceStrainThreshold
     }
 }
 
+/**
+ * Discrete strain color bands. Every point takes the color of the highest threshold it reaches,
+ * points below every threshold take the below color.
+ */
 export class SurfaceStrainThresholdScale
 {
     /**
@@ -118,8 +122,8 @@ export class SurfaceStrainThresholdScale
 
     /**
      * Creates a threshold scale from host input, and validates it.
-     * @param {{color: string, strain: number}[]} thresholds Hex color and threshold strain in
-     * microstrain. Any order, the highest threshold reached takes precedence.
+     * @param {Array.<{color: string, strain: number}>} thresholds Hex color and threshold strain
+     * in microstrain. Any order, the highest threshold reached takes precedence.
      * @param {string} [belowColor] Hex color for points below every threshold.
      * @returns {SurfaceStrainThresholdScale}
      */

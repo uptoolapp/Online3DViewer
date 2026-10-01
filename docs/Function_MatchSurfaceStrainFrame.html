@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, user-scalable=no">
 	<link rel="icon" type="image/png" href="static/3dviewer_net_favicon.ico">
 
-	<title>Online 3D Viewer - RGBColor</title>
+	<title>Online 3D Viewer - MatchSurfaceStrainFrame</title>
 
 	<link rel="stylesheet" href="static/highlightjs/styles/github.min.css"/>
 	<script src="static/highlightjs/highlight.min.js"></script>
@@ -73,74 +73,49 @@
 
 </div>
 <div id="main" class="main">
-<h1>RGBColor</h1>
-<div class="description">RGB color object. Components are numbers in the range of 0..255.</div>
-<h2>Constructor</h2>
+<h1>MatchSurfaceStrainFrame</h1>
 <div class="function_container">
-<div id="RGBColor" class="function_signature">new RGBColor (r, g, b)</div>
+<div id="MatchSurfaceStrainFrame" class="function_signature">MatchSurfaceStrainFrame (header, viewerBox, modelUnit, toleranceFactor)</div>
+<div class="function_title">Description</div>
+<div class="function_description">Finds the unit in which the artifact matches the model&#x27;s frame.</div>
 <div class="function_title">Parameters</div>
 <div class="parameter_header">
-<span class="parameter_name">r</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">header</span>
+<span class="type parameter_type">object</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Red component.</div>
+<div class="parameter_description">Surface strain header, lengths are in metres.</div>
 </div>
 <div class="parameter_header">
-<span class="parameter_name">g</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">viewerBox</span>
+<span class="type parameter_type">Box3D</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Green component.</div>
+<div class="parameter_description">Bounding box of the viewer&#x27;s model in model units.</div>
 </div>
 <div class="parameter_header">
-<span class="parameter_name">b</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">modelUnit</span>
+<span class="type parameter_type">Unit</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Blue component.</div>
-</div>
-</div>
-<h2>Methods</h2>
-<div class="function_container">
-<div id="Set" class="function_signature">Set (r, g, b)</div>
-<div class="function_title">Description</div>
-<div class="function_description">Sets the value of all components.</div>
-<div class="function_title">Parameters</div>
-<div class="parameter_header">
-<span class="parameter_name">r</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Red component.</div>
+<div class="parameter_description">Unit of the viewer&#x27;s model, may be unknown.</div>
 </div>
 <div class="parameter_header">
-<span class="parameter_name">g</span>
+<span class="parameter_name">toleranceFactor</span>
 <span class="type parameter_type">number</span>
+<span class="parameter_attributes">(optional)</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Green component.</div>
+<div class="parameter_description">Allowed difference in FE mesh sizes.</div>
 </div>
-<div class="parameter_header">
-<span class="parameter_name">b</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Blue component.</div>
-</div>
-</div>
-<div class="function_container">
-<div id="Clone" class="function_signature">Clone ()</div>
-<div class="function_title">Description</div>
-<div class="function_description">Creates a clone of the object.</div>
 <div class="function_title">Returns</div>
 <div class="function_returns">
-<span class="type parameter_type"><a href="Class_RGBColor.html" target="_self">RGBColor</a></span>
+<span class="type parameter_type">SurfaceStrainFrameResult</span>
 </div>
 </div>
 
 </div>
-<script type="text/javascript">Init ('RGBColor')</script>
+<script type="text/javascript">Init ('MatchSurfaceStrainFrame')</script>
 </body>
 
 </html>
