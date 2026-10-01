@@ -1,35 +1,101 @@
-import { SurfaceStrainDimmedColor } from '../surfacestrain/surfacestraincolor.js';
+import { SurfaceStrainThresholdScale } from '../surfacestrain/surfacestraincolor.js';
 import { ShadingType } from '../threejs/threeutils.js';
 
 import * as THREE from 'three';
+
+// Value written for vertices that could not be mapped, below any threshold.
+const UnmappedLog10Strain = -1000.0;
+
+// Threshold bands are resolved per fragment from the interpolated log10 strain, so band borders are
+// crisp contour lines instead of colors blended across every triangle.
+function AddThresholdShader (material, colorScale)
+{
+    let thresholds = colorScale.thresholds;
+    material.defines = {
+        SURFACE_STRAIN_THRESHOLD_COUNT : thresholds.length
+    };
+    let uniforms = {
+        surfaceStrainThresholds : { value : thresholds.map ((threshold) => threshold.log10Strain) },
+        surfaceStrainColors : { value : thresholds.map ((threshold) => new THREE.Vector3 (threshold.color[0], threshold.color[1], threshold.color[2])) },
+        surfaceStrainBelowColor : { value : new THREE.Vector3 (colorScale.belowColor[0], colorScale.belowColor[1], colorScale.belowColor[2]) }
+    };
+    material.onBeforeCompile = (shader) => {
+        Object.assign (shader.uniforms, uniforms);
+        shader.vertexShader = shader.vertexShader
+            .replace ('#include <common>', [
+                '#include <common>',
+                'attribute float surfaceStrainLog10;',
+                'varying float vSurfaceStrainLog10;'
+            ].join ('\n'))
+            .replace ('#include <begin_vertex>', [
+                '#include <begin_vertex>',
+                'vSurfaceStrainLog10 = surfaceStrainLog10;'
+            ].join ('\n'));
+        shader.fragmentShader = shader.fragmentShader
+            .replace ('#include <common>', [
+                '#include <common>',
+                'uniform float surfaceStrainThresholds[SURFACE_STRAIN_THRESHOLD_COUNT];',
+                'uniform vec3 surfaceStrainColors[SURFACE_STRAIN_THRESHOLD_COUNT];',
+                'uniform vec3 surfaceStrainBelowColor;',
+                'varying float vSurfaceStrainLog10;'
+            ].join ('\n'))
+            .replace ('#include <color_fragment>', [
+                '#include <color_fragment>',
+                // Thresholds are sorted highest first, walk up from the lowest so the highest one
+                // reached wins.
+                'vec3 surfaceStrainColor = surfaceStrainBelowColor;',
+                'for (int i = SURFACE_STRAIN_THRESHOLD_COUNT - 1; i >= 0; i--) {',
+                '    if (vSurfaceStrainLog10 >= surfaceStrainThresholds[i]) {',
+                '        surfaceStrainColor = surfaceStrainColors[i];',
+                '    }',
+                '}',
+                'diffuseColor.rgb = surfaceStrainColor;'
+            ].join ('\n'));
+    };
+    material.customProgramCacheKey = () => {
+        return 'surfacestrain_threshold_' + thresholds.length.toString ();
+    };
+}
 
 /**
  * Three.js overlay that shows a mapped surface strain field instead of the model's own meshes.
  */
 export class ViewerSurfaceStrain
 {
-    constructor (mapping, header, colorScale)
+    constructor (mapping, colorScale)
     {
         this.mapping = mapping;
-        this.header = header;
         this.colorScale = colorScale;
-        this.highlightedMode = null;
         this.rootObject = null;
     }
 
     CreateThreeObject (shadingType)
     {
+        let isThreshold = (this.colorScale instanceof SurfaceStrainThresholdScale);
         this.rootObject = new THREE.Object3D ();
         for (let meshResult of this.mapping.meshes) {
             let geometry = new THREE.BufferGeometry ();
             geometry.setAttribute ('position', new THREE.BufferAttribute (meshResult.positions, 3));
             geometry.setAttribute ('normal', new THREE.BufferAttribute (meshResult.normals, 3));
-            geometry.setAttribute ('color', new THREE.BufferAttribute (new Float32Array (meshResult.positions.length), 3));
             geometry.setIndex (new THREE.BufferAttribute (meshResult.indices, 1));
+            if (isThreshold) {
+                let log10Strain = new Float32Array (meshResult.VertexCount ());
+                for (let i = 0; i < log10Strain.length; i++) {
+                    let value = meshResult.log10Strain[i];
+                    log10Strain[i] = Number.isNaN (value) ? UnmappedLog10Strain : value;
+                }
+                geometry.setAttribute ('surfaceStrainLog10', new THREE.BufferAttribute (log10Strain, 1));
+            } else {
+                let colors = new Float32Array (meshResult.positions.length);
+                for (let i = 0; i < meshResult.VertexCount (); i++) {
+                    this.colorScale.GetColor (meshResult.log10Strain[i], colors, i * 3);
+                }
+                geometry.setAttribute ('color', new THREE.BufferAttribute (colors, 3));
+            }
 
             let materialParams = {
                 color : 0xffffff,
-                vertexColors : true,
+                vertexColors : !isThreshold,
                 side : THREE.DoubleSide
             };
             let material = null;
@@ -38,6 +104,9 @@ export class ViewerSurfaceStrain
             } else {
                 material = new THREE.MeshPhongMaterial (materialParams);
             }
+            if (isThreshold) {
+                AddThresholdShader (material, this.colorScale);
+            }
 
             let threeMesh = new THREE.Mesh (geometry, material);
             threeMesh.userData = {
@@ -45,77 +114,6 @@ export class ViewerSurfaceStrain
             };
             this.rootObject.add (threeMesh);
         }
-        this.UpdateColors ();
         return this.rootObject;
-    }
-
-    SetHighlightedMode (mode)
-    {
-        this.highlightedMode = mode;
-        this.UpdateColors ();
-    }
-
-    UpdateColors ()
-    {
-        if (this.rootObject === null) {
-            return;
-        }
-        for (let threeMesh of this.rootObject.children) {
-            let meshResult = threeMesh.userData.surfaceStrain;
-            let colorAttribute = threeMesh.geometry.getAttribute ('color');
-            let colors = colorAttribute.array;
-            for (let i = 0; i < meshResult.VertexCount (); i++) {
-                if (this.highlightedMode !== null && meshResult.mode[i] !== this.highlightedMode) {
-                    colors[i * 3] = SurfaceStrainDimmedColor[0];
-                    colors[i * 3 + 1] = SurfaceStrainDimmedColor[1];
-                    colors[i * 3 + 2] = SurfaceStrainDimmedColor[2];
-                } else {
-                    this.colorScale.GetColor (meshResult.log10Strain[i], colors, i * 3);
-                }
-            }
-            colorAttribute.needsUpdate = true;
-        }
-    }
-
-    /**
-     * Returns the strain at a raycaster intersection with the overlay, or null.
-     */
-    GetValueAtIntersection (intersection)
-    {
-        let meshResult = intersection.object.userData.surfaceStrain;
-        if (!meshResult || !intersection.face) {
-            return null;
-        }
-        let face = intersection.face;
-        let positions = meshResult.positions;
-        let corners = [face.a, face.b, face.c];
-        let triangle = new THREE.Triangle (
-            new THREE.Vector3 ().fromArray (positions, face.a * 3),
-            new THREE.Vector3 ().fromArray (positions, face.b * 3),
-            new THREE.Vector3 ().fromArray (positions, face.c * 3)
-        );
-        let localPoint = intersection.object.worldToLocal (intersection.point.clone ());
-        let bary = new THREE.Vector3 ();
-        if (triangle.getBarycoord (localPoint, bary) === null) {
-            return null;
-        }
-
-        let weights = [bary.x, bary.y, bary.z];
-        let log10Strain = 0.0;
-        for (let i = 0; i < 3; i++) {
-            log10Strain += weights[i] * meshResult.log10Strain[corners[i]];
-        }
-        if (Number.isNaN (log10Strain)) {
-            return null;
-        }
-        let nearest = weights.indexOf (Math.max (...weights));
-        let mode = meshResult.mode[corners[nearest]];
-        let modeData = (mode > 0 && this.header.modes) ? this.header.modes[mode - 1] : null;
-        return {
-            log10Strain : log10Strain,
-            microstrain : Math.pow (10.0, log10Strain) * 1.0e6,
-            mode : mode,
-            frequencyHz : modeData ? modeData.frequency_hz : null
-        };
     }
 }

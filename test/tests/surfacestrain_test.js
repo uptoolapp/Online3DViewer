@@ -177,7 +177,7 @@ const BoxSizeM = [0.1, 0.02, 0.004];
 const BoxMinMm = BoxMinM.map ((value) => value * 1000.0);
 const BoxSizeMm = BoxSizeM.map ((value) => value * 1000.0);
 
-// Strain grows linearly along x, mode 1 drives the left half, mode 2 the right half.
+// Strain grows linearly along x. The driving mode is still encoded, the file format requires it.
 function LinearStrain (pointM)
 {
     return -7.0 + 20.0 * (pointM[0] - BoxMinM[0]);
@@ -385,9 +385,6 @@ describe ('Surface Strain Mapping', function () {
             let xMm = meshResult.positions[i * 3];
             let expected = LinearStrain ([xMm / 1000.0, 0.0, 0.0]);
             assert.ok (Math.abs (meshResult.log10Strain[i] - expected) < 2e-3, 'strain at x = ' + xMm.toString ());
-            if (Math.abs (xMm) > 5.0) {
-                assert.strictEqual (meshResult.mode[i], xMm < 0.0 ? 1 : 2);
-            }
         }
         // The hot end of the part reaches the top of the range, even though the coarse
         // tessellation had no vertex in the middle of the long faces.
@@ -422,13 +419,105 @@ describe ('Surface Strain Mapping', function () {
 
         assert.ok (index.Sample (5.0, 5.0, 0.1, 0.0, 0.0, 1.0, 4.0, sample));
         assert.ok (Math.abs (sample.log10Strain + 7.0) < 1e-3);
-        assert.strictEqual (sample.mode, 2);
 
         assert.ok (index.Sample (5.0, 5.0, 0.0, 0.0, 0.0, -1.0, 4.0, sample));
         assert.ok (Math.abs (sample.log10Strain + 5.0) < 1e-3);
-        assert.strictEqual (sample.mode, 1);
 
         assert.ok (!index.Sample (50.0, 50.0, 0.0, 0.0, 0.0, 1.0, 4.0, sample));
+    });
+});
+
+describe ('Surface Strain Thresholds', function () {
+    function Log10Microstrain (microstrain)
+    {
+        return Math.log10 (microstrain * 1.0e-6);
+    }
+
+    function ColorOf (scale, microstrain)
+    {
+        let color = [0, 0, 0];
+        scale.GetColor (Log10Microstrain (microstrain), color, 0);
+        return color.map ((value) => Math.round (value * 255.0));
+    }
+
+    it ('Highest threshold reached takes precedence, in any order', function () {
+        // Deliberately not sorted.
+        let scale = OV.SurfaceStrainThresholdScale.Create ([
+            { color : '#ffff00', strain : 25 },
+            { color : '#ff0000', strain : 100 },
+            { color : 'ffa500', strain : 50 }
+        ]);
+        assert.deepStrictEqual (scale.thresholds.map ((threshold) => threshold.microstrain), [100, 50, 25]);
+        assert.deepStrictEqual (ColorOf (scale, 250), [255, 0, 0]);
+        assert.deepStrictEqual (ColorOf (scale, 100), [255, 0, 0]);
+        assert.deepStrictEqual (ColorOf (scale, 99), [255, 165, 0]);
+        assert.deepStrictEqual (ColorOf (scale, 50), [255, 165, 0]);
+        assert.deepStrictEqual (ColorOf (scale, 30), [255, 255, 0]);
+        assert.deepStrictEqual (ColorOf (scale, 25), [255, 255, 0]);
+        assert.deepStrictEqual (ColorOf (scale, 24), [200, 200, 200]);
+        let unmapped = [0, 0, 0];
+        scale.GetColor (NaN, unmapped, 0);
+        assert.deepStrictEqual (unmapped.map ((value) => Math.round (value * 255.0)), [200, 200, 200]);
+    });
+
+    it ('Below threshold color can be set', function () {
+        let scale = OV.SurfaceStrainThresholdScale.Create ([{ color : '#ff0000', strain : 10 }], '#000000');
+        assert.deepStrictEqual (ColorOf (scale, 1), [0, 0, 0]);
+    });
+
+    it ('Rejects invalid thresholds', function () {
+        let Create = (thresholds, below) => () => OV.SurfaceStrainThresholdScale.Create (thresholds, below);
+        assert.throws (Create ([]), /non-empty/);
+        assert.throws (Create ([{ color : 'red', strain : 10 }]), /threshold 1 color must be a hex color/);
+        assert.throws (Create ([{ color : '#ff0000', strain : 0 }]), /positive number/);
+        assert.throws (Create ([{ color : '#ff0000', strain : '10' }]), /positive number/);
+        assert.throws (Create ([{ color : '#ff0000', strain : 10 }, { color : '#00ff00', strain : 10 }]), /threshold 2 repeats/);
+        assert.throws (Create ([{ color : '#ff0000', strain : 10 }], '#12345'), /below threshold color/);
+        let tooMany = [];
+        for (let i = 1; i <= OV.SurfaceStrainMaxThresholdCount + 1; i++) {
+            tooMany.push ({ color : '#ff0000', strain : i });
+        }
+        assert.throws (Create (tooMany), /at most/);
+    });
+
+    it ('Thresholds replace the continuous scale', function () {
+        let params = new OV.SurfaceStrainParams ();
+        assert.ok (OV.CreateSurfaceStrainColorScale (params, null) instanceof OV.SurfaceStrainColorScale);
+        params.thresholds = [];
+        assert.ok (OV.CreateSurfaceStrainColorScale (params, null) instanceof OV.SurfaceStrainColorScale);
+        params.thresholds = [{ color : '#ff0000', strain : 100 }];
+        assert.ok (OV.CreateSurfaceStrainColorScale (params, null) instanceof OV.SurfaceStrainThresholdScale);
+    });
+
+    it ('Maps with thresholds, and rejects bad ones before mapping', function () {
+        let model = CreateViewerBox (BoxMinMm, BoxSizeMm, OV.Unit.Millimeter);
+        let params = new OV.SurfaceStrainParams ();
+        params.thresholds = [
+            { color : '#ff0000', strain : 100 },
+            { color : '#ffa500', strain : 50 },
+            { color : '#ffff00', strain : 25 }
+        ];
+        let result = OV.PrepareSurfaceStrain (model, CreateBoxArtifact (), params);
+        assert.ok (result.ok, result.reason);
+        assert.ok (result.colorScale instanceof OV.SurfaceStrainThresholdScale);
+        // The box field goes from 0.1 µε to 10 µε along x, so a 5 µε band covers the hot end.
+        params.thresholds = [{ color : '#ff0000', strain : 5 }];
+        result = OV.PrepareSurfaceStrain (model, CreateBoxArtifact (), params);
+        let meshResult = result.mapping.meshes[0];
+        let red = 0;
+        for (let i = 0; i < meshResult.VertexCount (); i++) {
+            if (result.colorScale.GetThresholdIndex (meshResult.log10Strain[i]) === 0) {
+                red += 1;
+                assert.ok (meshResult.positions[i * 3] > 30.0);
+            }
+        }
+        assert.ok (red > 0);
+
+        params.thresholds = [{ color : '#ff0000', strain : -1 }];
+        result = OV.PrepareSurfaceStrain (model, CreateBoxArtifact (), params);
+        assert.ok (!result.ok);
+        assert.strictEqual (result.mapping, null);
+        assert.ok (result.reason.indexOf ('positive number') !== -1);
     });
 });
 

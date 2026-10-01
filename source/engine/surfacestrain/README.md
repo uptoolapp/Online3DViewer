@@ -23,7 +23,6 @@ Two points drive the design:
  ─────────────────────────────────────────────────────────────────────────────
    embeddedViewer.LoadModelFromUrlList([step])          ──► (existing load path)
    embeddedViewer.ShowSurfaceStrain(binArrayBuffer)     ──► Promise<SurfaceStrainResult>
-   viewer.GetSurfaceStrainUnderMouse(xy) / SetSurfaceStrainHighlightedMode(k)
                                    │
  ══════════════════════════════════╪═════════════════════════════════════════
  IMPORT (existing, one change)     │
@@ -72,31 +71,29 @@ Two points drive the design:
               rings of grid cells out to 2·meshSize
               skip FE tris with dot(nFE, n) ≤ 0   ← thin-wall guard
               closest point (Ericson) → barycentric log10 strain
-              driving mode = nearest FE corner    (categorical)
               none found → NaN, counted as failure
       │
       ▼
-   SurfaceStrainMapping { meshes[ positions, normals, indices, log10[], mode[] ],
+   SurfaceStrainMapping { meshes[ positions, normals, indices, log10[] ],
                           vertexCount, failedCount, capped }
       failed > 0.5% ──► {ok:false}
         │
         ▼
-   ⑤ SurfaceStrainColorScale                           surfacestraincolor.js
-      viridis LUT, absolute −6 … −4.3 (1–50 µε) or relative
+   ⑤ CreateSurfaceStrainColorScale(params, header)     surfacestraincolor.js
+      params.thresholds set?
+        no  → SurfaceStrainColorScale     viridis, absolute −6 … −4.3 (1–50 µε) or relative
+        yes → SurfaceStrainThresholdScale [{color, strain µε}], highest reached wins
         │
  ═══════╪════════════════════════════════════════════════════════════════════
  VIEWER │         source/engine/viewer/
         ▼
-   Viewer.SetSurfaceStrain(mapping, header, colorScale)             viewer.js
+   Viewer.SetSurfaceStrain(mapping, colorScale)                     viewer.js
      ├─ surfaceStrainModel  (own ViewerModel, separate from extraModel,
      │                       so the measure tool's ClearExtra won't wipe it)
      │     └─ ViewerSurfaceStrain.CreateThreeObject    viewersurfacestrain.js
      │          one indexed BufferGeometry per instance, color attribute,
-     │          userData.surfaceStrain = mesh result (for picking)
-     ├─ SetMainMeshesVisible(false)   original meshes hidden, edges kept
-     ├─ SetSurfaceStrainHighlightedMode(k) → rewrite colors, dim mode ≠ k
-     └─ GetSurfaceStrainUnderMouse → raycast overlay → barycentric log10
-                                     → {microstrain, mode, frequencyHz}
+     │          userData.surfaceStrain = mesh result (for recolouring)
+     └─ SetMainMeshesVisible(false)   original meshes hidden, edges kept
 ```
 
 ## Walkthrough
@@ -159,31 +156,48 @@ failure distance all use `geometry.meshSize` in model units, so no other code de
    - It skips FE triangles whose outward normal disagrees with `n`. This guards thin walls.
    - The closest point on a triangle (Ericson) gives barycentric weights, and the three corners'
      `log10` strain values are interpolated with them.
-   - The driving mode comes from the FE corner nearest the closest point. It is categorical, so it
-     isn't interpolated.
    - A vertex with no candidate gets `NaN` and counts as a failure.
 
 If more than 0.5% of the vertices fail, the whole result is `{ok: false}`.
 
 ### ⑤ Colour: `surfacestraincolor.js`
 
-This is a sequential viridis scale, never a rainbow. By default the range is fixed across parts
-(`log10` −6 to −4.3, which is 1–50 µε) and values outside it are clamped. The relative range uses
-the part's own `strain_log10_low..high` and must be labelled as relative in the UI. Failed vertices
-are grey.
+`CreateSurfaceStrainColorScale` picks one of two scales. It runs before the mapping, so invalid
+colours fail fast.
+
+- **Continuous** (`SurfaceStrainColorScale`, the default). This is a sequential viridis scale,
+  never a rainbow. By default the range is fixed across parts (`log10` −6 to −4.3, which is 1–50 µε)
+  and values outside it are clamped. The relative range uses the part's own
+  `strain_log10_low..high` and must be labelled as relative in the UI. Failed vertices are grey.
+- **Threshold bands** (`SurfaceStrainThresholdScale`, when `params.thresholds` is a non-empty list
+  of `{ color : '#rrggbb', strain : µε }`). The thresholds are validated (1–16 of them, positive,
+  unique, 6-digit hex) and sorted highest first. A point takes the colour of the highest threshold
+  it reaches (≥), and points below every threshold, or not mapped, take `belowThresholdColor`
+  (`#c8c8c8` by default).
 
 ### Viewer overlay: `viewer.js`, `viewersurfacestrain.js`
 
-`Viewer.SetSurfaceStrain` builds one indexed `BufferGeometry` per mesh instance, with position,
-normal and colour attributes, and adds them to a dedicated `surfaceStrainModel`. That model is
-separate from `extraModel`, so the measure tool's `ClearExtra` doesn't remove the overlay. The
+`Viewer.SetSurfaceStrain` builds one indexed `BufferGeometry` per mesh instance and adds them to a
+dedicated `surfaceStrainModel`.
+
+- **Continuous scale:** the geometry carries a per-vertex colour attribute, and the GPU
+  interpolates it.
+- **Threshold bands:** the geometry carries a per-vertex `surfaceStrainLog10` attribute instead.
+  The material gets a small `onBeforeCompile` patch (Phong or Standard, whichever the model uses).
+  The fragment shader picks the band from the *interpolated* strain, so band borders are crisp
+  contour lines rather than colours blended across a triangle. Unmapped vertices are written as a
+  very low value, so they fall below every band.
+
+`Viewer.SetSurfaceStrainColorScale` rebuilds only the three.js objects from the stored mapping, so
+changing colours never repeats the mapping.
+
+The overlay model is separate from `extraModel`, so the measure tool's `ClearExtra` doesn't remove the overlay. The
 original meshes are hidden and the edges stay visible. `ClearSurfaceStrain()` removes the overlay
 and shows the originals again. Nothing in the model is changed.
 
-- `SetSurfaceStrainHighlightedMode(k)` rewrites the colour attribute and greys out vertices whose
-  driving mode isn't `k`.
-- `GetSurfaceStrainUnderMouse(xy)` raycasts the overlay, interpolates `log10` at the hit with the
-  hit triangle's barycentrics, and returns `{ log10Strain, microstrain, mode, frequencyHz }`.
+The overlay always shows the max envelope from the artifact: at each point, the worst strain over
+all modes. There is no per-mode view and no hover or picking of values. The decoder still reads the
+per-node driving mode, because the file format requires it, but the mapping doesn't use it.
 
 ## Host API
 
@@ -192,12 +206,12 @@ let result = await embeddedViewer.ShowSurfaceStrain (binArrayBuffer, params);  /
 if (!result.ok) {
     console.warn (result.reason);          // nothing is painted
 } else {
-    result.header.modes;                   // mode table: frequency_hz, peak_strain
+    result.header.modes;                   // frequency_hz, peak_strain (information only)
     result.header.stats;                   // risk badge: p999, volume_fraction_above
     result.header.element_type;            // "C3D8" means lower confidence
 }
-embeddedViewer.GetViewer ().SetSurfaceStrainHighlightedMode (2);
-embeddedViewer.GetViewer ().GetSurfaceStrainUnderMouse ({ x, y });
+params.thresholds = [{ color : '#ff0000', strain : 100 }, { color : '#ffa500', strain : 50 }];
+embeddedViewer.SetSurfaceStrainColors (params);   // recolor only, no remapping
 embeddedViewer.ClearSurfaceStrain ();
 ```
 
@@ -217,7 +231,7 @@ The host owns the UI text. Use wording like "relative vibration strain at 10 g",
 - The mapping runs on the main thread, so very large parts block the page for a few seconds.
   Moving it into a Web Worker would fix that.
 - While the overlay is shown, the original meshes are hidden, so ordinary picking and the measure
-  tool don't hit them. Use `GetSurfaceStrainUnderMouse` on the overlay instead.
+  tool don't hit them.
 - It has been verified with synthetic artifacts and OCCT tessellations standing in for the FE
   surface, but not yet with a `surface_strain.bin` from the analysis service.
 

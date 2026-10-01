@@ -5,7 +5,8 @@ import { ImportErrorCode, ImportSettings } from '../import/importer.js';
 import { TransformFileHostUrls } from '../io/fileutils.js';
 import { ParameterConverter } from '../parameters/parameterlist.js';
 import { ThreeModelLoader } from '../threejs/threemodelloader.js';
-import { PrepareSurfaceStrain, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
+import { PrepareSurfaceStrain, SurfaceStrainParams, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
+import { CreateSurfaceStrainColorScale } from '../surfacestrain/surfacestraincolor.js';
 import { Viewer } from './viewer.js';
 import { EnvironmentSettings } from './shadingmodel.js';
 import { Loc } from '../core/localization.js';
@@ -70,6 +71,7 @@ export class EmbeddedViewer
 
         this.model = null;
         this.modelLoader = new ThreeModelLoader ();
+        this.surfaceStrainHeader = null;
 
         this.progressDiv = null;
         window.addEventListener ('resize', () => {
@@ -218,6 +220,7 @@ export class EmbeddedViewer
     {
         return new Promise ((resolve) => {
             this.viewer.ClearSurfaceStrain ();
+            this.surfaceStrainHeader = null;
             if (this.model === null) {
                 let result = new SurfaceStrainResult ();
                 result.reason = 'no model is loaded';
@@ -228,11 +231,35 @@ export class EmbeddedViewer
             setTimeout (() => {
                 let result = PrepareSurfaceStrain (this.model, buffer, params);
                 if (result.ok) {
-                    this.viewer.SetSurfaceStrain (result.mapping, result.header, result.colorScale);
+                    this.surfaceStrainHeader = result.header;
+                    this.viewer.SetSurfaceStrain (result.mapping, result.colorScale);
                 }
                 resolve (result);
             }, 0);
         });
+    }
+
+    /**
+     * Changes the colors of the shown surface strain without mapping it again, for example to
+     * switch to threshold bands or to change them. Only the color fields of params are used:
+     * thresholds, belowThresholdColor and colorRange.
+     * @param {SurfaceStrainParams} params Color parameters.
+     * @returns {{ok: boolean, reason: string|null, colorScale: object|null}} On failure the
+     * current colors stay.
+     */
+    SetSurfaceStrainColors (params)
+    {
+        if (!this.viewer.HasSurfaceStrain () || this.surfaceStrainHeader === null) {
+            return { ok : false, reason : 'no surface strain is shown', colorScale : null };
+        }
+        let colorScale = null;
+        try {
+            colorScale = CreateSurfaceStrainColorScale (params || new SurfaceStrainParams (), this.surfaceStrainHeader);
+        } catch (error) {
+            return { ok : false, reason : error.message, colorScale : null };
+        }
+        this.viewer.SetSurfaceStrainColorScale (colorScale);
+        return { ok : true, reason : null, colorScale : colorScale };
     }
 
     /**
@@ -241,6 +268,7 @@ export class EmbeddedViewer
     ClearSurfaceStrain ()
     {
         this.viewer.ClearSurfaceStrain ();
+        this.surfaceStrainHeader = null;
     }
 
     /**

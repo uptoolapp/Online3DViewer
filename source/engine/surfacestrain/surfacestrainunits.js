@@ -48,7 +48,6 @@ export class SurfaceStrainGeometry
         this.positions = null;
         this.triangles = null;
         this.log10Strain = null;
-        this.driving = null;
         this.bboxMin = null;
         this.bboxSize = null;
         this.meshSize = null;
@@ -91,7 +90,6 @@ export function ConvertSurfaceStrainToUnit (data, unit)
     geometry.positions = positions;
     geometry.triangles = data.triangles;
     geometry.log10Strain = data.log10Strain;
-    geometry.driving = data.driving;
     geometry.bboxMin = header.bbox_min_m.map ((value) => value * scale);
     geometry.bboxSize = header.bbox_size_m.map ((value) => value * scale);
     geometry.meshSize = header.mesh_size_m * scale;

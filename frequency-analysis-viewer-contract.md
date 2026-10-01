@@ -59,7 +59,9 @@ All names are exported from `online-3d-viewer`.
 
   | Field                   | Default                               | Meaning                                                                                         |
   | ----------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------- |
-  | `colorRange`            | `OV.SurfaceStrainColorRange.Absolute` | Fixed 1–50 µε scale across parts. `Relative` uses the part's own range and must be labelled as relative. |
+  | `colorRange`            | `OV.SurfaceStrainColorRange.Absolute` | Fixed 1–50 µε scale across parts. `Relative` uses the part's own range and must be labelled as relative. Ignored when `thresholds` is set. |
+  | `thresholds`            | `null`                                | Threshold bands instead of the continuous scale, see [Threshold bands](#threshold-bands). `null` or `[]` keeps the continuous scale. |
+  | `belowThresholdColor`   | `null` (`#c8c8c8`)                    | Hex colour for points below every threshold, and for points that couldn't be mapped. Used only with `thresholds`. |
   | `frameToleranceFactor`  | `2.0`                                 | Allowed bounding box difference, in FE mesh sizes.                                               |
   | `maxFailedFraction`     | `0.005`                               | The mapping fails if more vertices than this can't reach the FE surface.                         |
   | `mappingParams.maxVertexCount` | `4000000`                      | Refinement budget.                                                                               |
@@ -76,7 +78,7 @@ All names are exported from `online-3d-viewer`.
 | `header`     | `object \| null`               | The artifact's JSON header, set whenever decoding succeeded, even when `ok` is `false`.   |
 | `unit`       | `OV.Unit \| null`              | The unit the artifact was converted to, `OV.Unit.Millimeter` for STEP.                    |
 | `mapping`    | `SurfaceStrainMapping \| null` | `vertexCount`, `failedCount`, `capped`. For diagnostics.                                  |
-| `colorScale` | `SurfaceStrainColorScale \| null` | Use it to draw the legend, see [Legend](#legend).                                      |
+| `colorScale` | `SurfaceStrainColorScale \| SurfaceStrainThresholdScale \| null` | Use it to draw the legend, see [Legend](#legend). |
 
 Failure reasons the host may see (the texts aren't stable, don't parse them):
 
@@ -85,28 +87,22 @@ Failure reasons the host may see (the texts aren't stable, don't parse them):
 - `unit mismatch, …`: the artifact fits the model only in another unit.
 - `bounding box size differs …`, or `bounding box position differs …`: another part, or a moved model.
 - `N of M vertices are farther than …`: the surfaces don't line up.
+- `threshold N …`, or `thresholds must be …`: invalid `thresholds`. This is checked before the
+  mapping, so it fails fast.
 
 When `ok` is `false`, **show nothing on the model**. Show a neutral message such as "Vibration map
 unavailable for this file". Never fall back to a guessed heat map.
 
+### `EmbeddedViewer.SetSurfaceStrainColors (params) → { ok, reason, colorScale }`
+
+Changes the colours of the overlay that is shown **without mapping again**. It's instant, so use it
+for a threshold editor or a band/continuous toggle. Only the colour fields of `params` are read:
+`thresholds`, `belowThresholdColor` and `colorRange`. On failure (no overlay shown, or invalid
+thresholds) it returns `ok: false` with a reason, and the current colours stay.
+
 ### `EmbeddedViewer.ClearSurfaceStrain ()`
 
 Removes the overlay and shows the model's own colours again. Safe to call at any time.
-
-### `EmbeddedViewer.GetViewer ().SetSurfaceStrainHighlightedMode (mode)`
-
-`mode` is a 1-based index into `header.modes`, or `null` for every mode. Vertices driven by other
-modes turn light grey. Does nothing without an overlay.
-
-### `EmbeddedViewer.GetViewer ().GetSurfaceStrainUnderMouse ({ x, y }) → value | null`
-
-`x` and `y` are **CSS pixels relative to the viewer canvas** (for example
-`event.clientX - canvas.getBoundingClientRect ().left`). Returns `null` off the part or without an
-overlay. Otherwise it returns:
-
-```ts
-{ log10Strain: number, microstrain: number, mode: number, frequencyHz: number | null }
-```
 
 ### `OV.IsSurfaceStrainSourceFile (stepArrayBuffer, sha256Hex) → Promise<boolean>`
 
@@ -121,7 +117,7 @@ LoadModelFromUrlList ([fileUrl])
         │
 onModelLoaded ──► fetch surface_strain.bin ──► ShowSurfaceStrain (buffer)
                                                     │
-                                   ok ──► legend, mode table, hover
+                                   ok ──► legend
                                    !ok ─► neutral message, log reason
         │
 LoadModelFromUrlList (another file)  ──► the overlay is cleared automatically
@@ -133,8 +129,8 @@ Destroy ()                           ──► everything is freed
 - Applying edge settings or projection mode from the `ov_*` cookies is safe before or after
   `ShowSurfaceStrain`. Edges stay visible on top of the overlay.
 - While the overlay is shown, the model's own meshes are hidden. `GetMeshUserDataUnderMouse`,
-  `GetMeshIntersectionUnderMouse` and the measure tool don't hit anything. Use
-  `GetSurfaceStrainUnderMouse` instead.
+  `GetMeshIntersectionUnderMouse` and the measure tool don't hit anything.
+- The overlay is display only. There is no hover or picking of strain values.
 
 ## Performance
 
@@ -142,6 +138,34 @@ The mapping runs on the main thread after one `setTimeout`, so the page can pain
 first. Measured on a 5 m assembly with 18 meshes: 1–2 s at a 20 mm FE mesh size, and about 6 s
 at 1 mm, where the 4M-vertex budget is reached (`mapping.capped` is `true`). Show a spinner until
 the promise resolves. Typical parts with a few mm mesh size fall between those numbers.
+
+## Threshold bands
+
+`thresholds` is a list of `{ color, strain }`:
+
+- `color`: hex colour, `"#rrggbb"` or `"rrggbb"`.
+- `strain`: threshold in **microstrain** (µε), a positive number. It's compared with the envelope
+  strain, the worst over all modes at the reference acceleration.
+
+Every point takes the colour of the **highest threshold it reaches** (strain ≥ threshold). The
+order of the list doesn't matter. Points below every threshold take `belowThresholdColor`.
+
+```ts
+params.thresholds = [
+  { color: "#ff0000", strain: 100 },   // ≥ 100 µε: red
+  { color: "#ffa500", strain: 50 },    // 50 to 100 µε: orange
+  { color: "#ffff00", strain: 25 },    // 25 to 50 µε: yellow
+];                                     // < 25 µε: #c8c8c8
+```
+
+Rules, each checked with a clear `reason`:
+
+- 1 to 16 thresholds.
+- Every `strain` is a positive, finite number, and no two are equal.
+- Every `color` is a 6-digit hex colour.
+
+Band borders are drawn per pixel from the interpolated strain, so they are crisp lines on the part,
+not colours blended across triangles.
 
 ## Legend
 
@@ -155,8 +179,12 @@ result.colorScale.GetColor (log10Value, rgb, 0);      // float RGB in 0..1
 
 - Label the ends in microstrain, `10 ** log10 * 1e6`: 1 µε and 50 µε for the absolute range.
   Values outside the range are clamped.
-- Grey (`OV.SurfaceStrainMissingColor`) marks vertices that couldn't be mapped. Light grey
-  (`OV.SurfaceStrainDimmedColor`) marks vertices dimmed by mode highlighting.
+- Grey (`OV.SurfaceStrainMissingColor`) marks vertices that couldn't be mapped.
+
+For threshold bands (`result.colorScale instanceof OV.SurfaceStrainThresholdScale`), draw one swatch
+per band from `colorScale.thresholds`. It's sorted highest first, and each entry has `color` (float
+RGB 0..1) and `microstrain`. Add a last swatch for `colorScale.belowColor`, labelled
+"below <lowest> µε".
 
 ## UI requirements
 
@@ -164,14 +192,16 @@ These come from the artifact contract, and the host owns them:
 
 - **Wording.** Use "Relative vibration strain at 10 g", computed from
   `header.reference_acceleration_m_s2 / 9.80665`. Never say "stress", "failure" or "predicted strain".
-- **Mode table.** Show `header.modes` in order, with `frequency_hz` and `peak_strain`. Selecting a
-  row calls `SetSurfaceStrainHighlightedMode (index + 1)`.
+- **One view only.** The overlay is always the max envelope: at each point, the worst strain over
+  all modes. There is no per-mode view. If `header.modes` is listed (`frequency_hz`, `peak_strain`),
+  it is information only.
 - **Risk badge.** Use `header.stats.p999` and `header.stats.volume_fraction_above`. These are
-  volume-weighted over the whole solid. Never recompute peaks from the painted surface or the hover
-  values.
-- **Hover.** Show `microstrain` (2 significant digits) and the driving mode's `frequencyHz`.
+  volume-weighted over the whole solid. Never recompute peaks from the painted surface.
 - **Low confidence.** When `header.element_type === "C3D8"`, show a lower-confidence note.
 - **Relative range.** If offered, it must be labelled as relative.
+- **Threshold bands.** Label each band with its range in µε (for example "≥ 100 µε", "50–100 µε").
+  They are still relative vibration strain at the reference acceleration, not allowable limits, so
+  don't call them pass or fail.
 
 ## Example (CadModelViewerLite)
 
@@ -191,13 +221,6 @@ const viewer = new OV.EmbeddedViewer(container, {
   },
 });
 viewer.LoadModelFromUrlList([fileUrl]);
-
-const canvas = container.querySelector("canvas")!;
-canvas.addEventListener("mousemove", (ev) => {
-  const rect = canvas.getBoundingClientRect();
-  const value = viewer.GetViewer().GetSurfaceStrainUnderMouse({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
-  setHover(value); // null clears the tooltip
-});
 ```
 
 ## Compatibility

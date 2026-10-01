@@ -10,11 +10,12 @@
 	<script type="text/javascript" src="../build/engine_dev/o3dv.min.js"></script>
 
     <script type='text/javascript'>
+        // Files can be picked, or given in the query string:
+        // embed_surface_strain.html?model=<step url>&strain=<bin url>&thresholds=<json list>
         window.addEventListener ('load', () => {
             let parentDiv = document.getElementById ('viewer');
             let statusDiv = document.getElementById ('status');
-            let hoverDiv = document.getElementById ('hover');
-            let modeSelect = document.getElementById ('mode');
+            let thresholdsInput = document.getElementById ('thresholds');
             let strainBuffer = null;
             let modelLoaded = false;
 
@@ -27,14 +28,30 @@
                 }
             });
 
+            function GetColorParams ()
+            {
+                let params = new OV.SurfaceStrainParams ();
+                if (document.getElementById ('relative').checked) {
+                    params.colorRange = OV.SurfaceStrainColorRange.Relative;
+                }
+                let text = thresholdsInput.value.trim ();
+                if (text.length > 0) {
+                    params.thresholds = JSON.parse (text);
+                }
+                return params;
+            }
+
             function ShowStrain ()
             {
                 if (!modelLoaded || strainBuffer === null) {
                     return;
                 }
-                let params = new OV.SurfaceStrainParams ();
-                if (document.getElementById ('relative').checked) {
-                    params.colorRange = OV.SurfaceStrainColorRange.Relative;
+                let params = null;
+                try {
+                    params = GetColorParams ();
+                } catch (error) {
+                    statusDiv.textContent = 'Invalid thresholds JSON: ' + error.message;
+                    return;
                 }
                 statusDiv.textContent = 'Mapping...';
                 let start = performance.now ();
@@ -48,12 +65,21 @@
                         result.header.element_type + ', unit ' + OV.SurfaceStrainUnitToString (result.unit) + ', ' +
                         mapping.vertexCount + ' vertices, ' + mapping.failedCount + ' failed' + (mapping.capped ? ', capped' : '') +
                         ', ' + Math.round (performance.now () - start) + ' ms';
-                    modeSelect.innerHTML = '';
-                    modeSelect.add (new Option ('All modes', ''));
-                    result.header.modes.forEach ((mode, index) => {
-                        modeSelect.add (new Option ((index + 1) + ': ' + mode.frequency_hz.toFixed (1) + ' Hz', (index + 1).toString ()));
-                    });
+                    document.body.setAttribute ('data-strain-shown', 'true');
                 });
+            }
+
+            function ApplyColors ()
+            {
+                let params = null;
+                try {
+                    params = GetColorParams ();
+                } catch (error) {
+                    statusDiv.textContent = 'Invalid thresholds JSON: ' + error.message;
+                    return;
+                }
+                let result = viewer.SetSurfaceStrainColors (params);
+                statusDiv.textContent = result.ok ? 'Colors applied' : 'Colors not applied: ' + result.reason;
             }
 
             document.getElementById ('model').addEventListener ('change', (ev) => {
@@ -66,30 +92,30 @@
                     ShowStrain ();
                 });
             });
-            document.getElementById ('relative').addEventListener ('change', ShowStrain);
+            document.getElementById ('relative').addEventListener ('change', ApplyColors);
+            document.getElementById ('apply').addEventListener ('click', ApplyColors);
             document.getElementById ('clear').addEventListener ('click', () => {
                 viewer.ClearSurfaceStrain ();
                 statusDiv.textContent = 'Cleared';
             });
-            modeSelect.addEventListener ('change', () => {
-                let mode = modeSelect.value === '' ? null : parseInt (modeSelect.value, 10);
-                viewer.GetViewer ().SetSurfaceStrainHighlightedMode (mode);
-            });
-            parentDiv.addEventListener ('mousemove', (ev) => {
-                let rect = parentDiv.getBoundingClientRect ();
-                let value = viewer.GetViewer ().GetSurfaceStrainUnderMouse ({ x : ev.clientX - rect.left, y : ev.clientY - rect.top });
-                if (value === null) {
-                    hoverDiv.textContent = '';
-                    return;
-                }
-                hoverDiv.textContent = value.microstrain.toFixed (2) + ' µε, mode ' + value.mode + (value.frequencyHz !== null ? ' (' + value.frequencyHz.toFixed (1) + ' Hz)' : '');
-            });
+
+            let query = new URLSearchParams (window.location.search);
+            if (query.has ('thresholds')) {
+                thresholdsInput.value = query.get ('thresholds');
+            }
+            if (query.has ('model') && query.has ('strain')) {
+                fetch (query.get ('strain')).then ((response) => response.arrayBuffer ()).then ((buffer) => {
+                    strainBuffer = buffer;
+                    viewer.LoadModelFromUrlList ([query.get ('model')]);
+                });
+            }
         });
     </script>
 
     <style>
         body { font-family: sans-serif; font-size: 14px; }
         #viewer { width: 960px; height: 600px; border: 1px solid #eeeeee; }
+        #thresholds { width: 560px; font-family: monospace; }
         .row { margin: 6px 0px; }
     </style>
 </head>
@@ -99,11 +125,14 @@
         STEP <input type="file" id="model" accept=".stp,.step">
         surface_strain.bin <input type="file" id="strain" accept=".bin">
         <label><input type="checkbox" id="relative"> relative range</label>
-        <select id="mode"></select>
         <button id="clear">Clear</button>
     </div>
+    <div class="row">
+        Thresholds
+        <input type="text" id="thresholds" placeholder='[{"color":"#ff0000","strain":100},{"color":"#ffa500","strain":50},{"color":"#ffff00","strain":25}]'>
+        <button id="apply">Apply colors</button>
+    </div>
     <div class="row" id="status"></div>
-    <div class="row" id="hover">&nbsp;</div>
     <div id="viewer"></div>
 </body>
 

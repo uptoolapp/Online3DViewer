@@ -9,7 +9,6 @@ export class SurfaceStrainSample
     constructor ()
     {
         this.log10Strain = NaN;
-        this.mode = 0;
         this.distance = Infinity;
     }
 }
@@ -203,7 +202,6 @@ export class SurfaceStrainIndex
 
         if (bestTriangle === -1) {
             result.log10Strain = NaN;
-            result.mode = 0;
             result.distance = Infinity;
             return false;
         }
@@ -214,24 +212,6 @@ export class SurfaceStrainIndex
         let log10Strain = this.geometry.log10Strain;
         result.log10Strain = bestU * log10Strain[i0] + bestV * log10Strain[i1] + bestW * log10Strain[i2];
         result.distance = Math.sqrt (bestDistanceSquared);
-
-        // The driving mode is categorical, take it from the corner nearest to the closest point.
-        let qx = bestU * positions[i0 * 3] + bestV * positions[i1 * 3] + bestW * positions[i2 * 3];
-        let qy = bestU * positions[i0 * 3 + 1] + bestV * positions[i1 * 3 + 1] + bestW * positions[i2 * 3 + 1];
-        let qz = bestU * positions[i0 * 3 + 2] + bestV * positions[i1 * 3 + 2] + bestW * positions[i2 * 3 + 2];
-        let nearestCorner = i0;
-        let nearestDistance = Infinity;
-        for (let corner of [i0, i1, i2]) {
-            let dx = positions[corner * 3] - qx;
-            let dy = positions[corner * 3 + 1] - qy;
-            let dz = positions[corner * 3 + 2] - qz;
-            let distance = dx * dx + dy * dy + dz * dz;
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestCorner = corner;
-            }
-        }
-        result.mode = this.geometry.driving[nearestCorner];
         return true;
     }
 }
@@ -307,9 +287,8 @@ export class SurfaceStrainMeshResult
         this.positions = null;
         this.normals = null;
         this.indices = null;
-        // Per refined vertex, NaN and 0 where the mapping failed.
+        // Per refined vertex, NaN where the mapping failed.
         this.log10Strain = null;
-        this.mode = null;
         this.failedCount = 0;
     }
 
@@ -452,7 +431,6 @@ export function MapSurfaceStrainToModel (model, geometry, params)
         result.indices = new Uint32Array (indices);
         let vertexCount = positions.length / 3;
         result.log10Strain = new Float32Array (vertexCount);
-        result.mode = new Uint8Array (vertexCount);
         for (let i = 0; i < vertexCount; i++) {
             let found = index.Sample (
                 positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2],
@@ -460,7 +438,6 @@ export function MapSurfaceStrainToModel (model, geometry, params)
                 maxDistance, sample
             );
             result.log10Strain[i] = sample.log10Strain;
-            result.mode[i] = sample.mode;
             if (!found) {
                 result.failedCount += 1;
             }

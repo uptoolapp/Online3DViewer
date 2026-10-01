@@ -1,5 +1,5 @@
 import { GetBoundingBox } from '../model/modelutils.js';
-import { SurfaceStrainColorRange, SurfaceStrainColorScale } from './surfacestraincolor.js';
+import { CreateSurfaceStrainColorScale, SurfaceStrainColorRange } from './surfacestraincolor.js';
 import { DecodeSurfaceStrain } from './surfacestraindecoder.js';
 import { MatchSurfaceStrainFrame } from './surfacestrainframe.js';
 import { MapSurfaceStrainToModel, SurfaceStrainMappingParams } from './surfacestrainsampler.js';
@@ -11,6 +11,12 @@ export class SurfaceStrainParams
     {
         // Absolute (fixed 1-50 µε) or relative (the part's own range, must be labelled as relative).
         this.colorRange = SurfaceStrainColorRange.Absolute;
+        // Discrete bands instead of the continuous scale: a list of { color : '#rrggbb', strain : µε }.
+        // Every point takes the color of the highest threshold it reaches, in any order. Null or an
+        // empty list keeps the continuous scale.
+        this.thresholds = null;
+        // Hex color of the points below every threshold, used only with thresholds.
+        this.belowThresholdColor = null;
         // Allowed bounding box difference between the artifact and the model, in FE mesh sizes.
         this.frameToleranceFactor = 2.0;
         // The mapping fails if more than this fraction of the viewer's vertices find no FE triangle.
@@ -58,6 +64,15 @@ export function PrepareSurfaceStrain (model, buffer, params)
     }
     result.header = data.header;
 
+    // Validate the colors before the expensive mapping.
+    let colorScale = null;
+    try {
+        colorScale = CreateSurfaceStrainColorScale (params, data.header);
+    } catch (error) {
+        result.reason = error.message;
+        return result;
+    }
+
     let viewerBox = GetBoundingBox (model);
     if (viewerBox === null) {
         result.reason = 'the model is empty';
@@ -86,6 +101,6 @@ export function PrepareSurfaceStrain (model, buffer, params)
 
     result.ok = true;
     result.mapping = mapping;
-    result.colorScale = SurfaceStrainColorScale.Create (params.colorRange, data.header);
+    result.colorScale = colorScale;
     return result;
 }

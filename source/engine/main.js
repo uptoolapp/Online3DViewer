@@ -66,7 +66,7 @@ import { Triangle } from './model/triangle.js';
 import { convertUnit, Unit } from './model/unit.js';
 import { ParameterListBuilder, ParameterListParser, CreateUrlBuilder, CreateUrlParser, CreateModelUrlParameters, ParameterConverter } from './parameters/parameterlist.js';
 import { SurfaceStrainParams, SurfaceStrainResult, PrepareSurfaceStrain } from './surfacestrain/surfacestrain.js';
-import { SurfaceStrainColorScale, SurfaceStrainColorRange, SurfaceStrainAbsoluteLog10Low, SurfaceStrainAbsoluteLog10High, SurfaceStrainMissingColor, SurfaceStrainDimmedColor } from './surfacestrain/surfacestraincolor.js';
+import { SurfaceStrainColorScale, SurfaceStrainThreshold, SurfaceStrainThresholdScale, CreateSurfaceStrainColorScale, SurfaceStrainColorRange, SurfaceStrainAbsoluteLog10Low, SurfaceStrainAbsoluteLog10High, SurfaceStrainMissingColor, SurfaceStrainMaxThresholdCount, SurfaceStrainDefaultBelowThresholdColor } from './surfacestrain/surfacestraincolor.js';
 import { SurfaceStrainData, DecodeSurfaceStrain } from './surfacestrain/surfacestraindecoder.js';
 import { SurfaceStrainFrameResult, CheckSurfaceStrainFrameAtScale, MatchSurfaceStrainFrame, IsSurfaceStrainSourceFile } from './surfacestrain/surfacestrainframe.js';
 import { RefinementBudget, RefinedTriangles, RefineTriangles } from './surfacestrain/surfacestrainrefine.js';
@@ -305,11 +305,15 @@ export {
     SurfaceStrainResult,
     PrepareSurfaceStrain,
     SurfaceStrainColorScale,
+    SurfaceStrainThreshold,
+    SurfaceStrainThresholdScale,
+    CreateSurfaceStrainColorScale,
     SurfaceStrainColorRange,
     SurfaceStrainAbsoluteLog10Low,
     SurfaceStrainAbsoluteLog10High,
     SurfaceStrainMissingColor,
-    SurfaceStrainDimmedColor,
+    SurfaceStrainMaxThresholdCount,
+    SurfaceStrainDefaultBelowThresholdColor,
     SurfaceStrainData,
     DecodeSurfaceStrain,
     SurfaceStrainFrameResult,
