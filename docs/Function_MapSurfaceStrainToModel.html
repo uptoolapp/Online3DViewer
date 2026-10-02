@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, user-scalable=no">
 	<link rel="icon" type="image/png" href="static/3dviewer_net_favicon.ico">
 
-	<title>Online 3D Viewer - RGBColor</title>
+	<title>Online 3D Viewer - MapSurfaceStrainToModel</title>
 
 	<link rel="stylesheet" href="static/highlightjs/styles/github.min.css"/>
 	<script src="static/highlightjs/highlight.min.js"></script>
@@ -73,74 +73,42 @@
 
 </div>
 <div id="main" class="main">
-<h1>RGBColor</h1>
-<div class="description">RGB color object. Components are numbers in the range of 0..255.</div>
-<h2>Constructor</h2>
+<h1>MapSurfaceStrainToModel</h1>
 <div class="function_container">
-<div id="RGBColor" class="function_signature">new RGBColor (r, g, b)</div>
+<div id="MapSurfaceStrainToModel" class="function_signature">MapSurfaceStrainToModel (model, geometry, params)</div>
+<div class="function_title">Description</div>
+<div class="function_description">Maps the FE surface strain onto the viewer&#x27;s model. Every BREP face of every mesh instance is refined to the FE mesh size, then every refined vertex samples the FE surface.</div>
 <div class="function_title">Parameters</div>
 <div class="parameter_header">
-<span class="parameter_name">r</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">model</span>
+<span class="type parameter_type">Model</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Red component.</div>
+<div class="parameter_description">The viewer&#x27;s model.</div>
 </div>
 <div class="parameter_header">
-<span class="parameter_name">g</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">geometry</span>
+<span class="type parameter_type">SurfaceStrainGeometry</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Green component.</div>
+<div class="parameter_description">FE surface converted to the model unit.</div>
 </div>
 <div class="parameter_header">
-<span class="parameter_name">b</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">params</span>
+<span class="type parameter_type">SurfaceStrainMappingParams</span>
+<span class="parameter_attributes">(optional)</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Blue component.</div>
+<div class="parameter_description">Mapping parameters.</div>
 </div>
-</div>
-<h2>Methods</h2>
-<div class="function_container">
-<div id="Set" class="function_signature">Set (r, g, b)</div>
-<div class="function_title">Description</div>
-<div class="function_description">Sets the value of all components.</div>
-<div class="function_title">Parameters</div>
-<div class="parameter_header">
-<span class="parameter_name">r</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Red component.</div>
-</div>
-<div class="parameter_header">
-<span class="parameter_name">g</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Green component.</div>
-</div>
-<div class="parameter_header">
-<span class="parameter_name">b</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Blue component.</div>
-</div>
-</div>
-<div class="function_container">
-<div id="Clone" class="function_signature">Clone ()</div>
-<div class="function_title">Description</div>
-<div class="function_description">Creates a clone of the object.</div>
 <div class="function_title">Returns</div>
 <div class="function_returns">
-<span class="type parameter_type"><a href="Class_RGBColor.html" target="_self">RGBColor</a></span>
+<span class="type parameter_type">SurfaceStrainMapping</span>
 </div>
 </div>
 
 </div>
-<script type="text/javascript">Init ('RGBColor')</script>
+<script type="text/javascript">Init ('MapSurfaceStrainToModel')</script>
 </body>
 
 </html>

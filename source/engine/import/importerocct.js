@@ -123,6 +123,8 @@ export class ImporterOcct extends ImporterBase
         if (occtMesh.name) {
             mesh.SetName (occtMesh.name);
         }
+        // Keep the triangle range of every BREP face, the surface strain mapping works per face.
+        mesh.SetBrepFaces (occtMesh.brep_faces.map ((brepFace) => ({ first : brepFace.first, last : brepFace.last })));
         for (let brepFace of occtMesh.brep_faces) {
             if (brepFace.color === null) {
                 continue;

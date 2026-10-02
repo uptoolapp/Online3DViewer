@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, user-scalable=no">
 	<link rel="icon" type="image/png" href="static/3dviewer_net_favicon.ico">
 
-	<title>Online 3D Viewer - RGBColor</title>
+	<title>Online 3D Viewer - SetExternalLibLocation</title>
 
 	<link rel="stylesheet" href="static/highlightjs/styles/github.min.css"/>
 	<script src="static/highlightjs/highlight.min.js"></script>
@@ -73,74 +73,30 @@
 
 </div>
 <div id="main" class="main">
-<h1>RGBColor</h1>
-<div class="description">RGB color object. Components are numbers in the range of 0..255.</div>
-<h2>Constructor</h2>
+<h1>SetExternalLibLocation</h1>
 <div class="function_container">
-<div id="RGBColor" class="function_signature">new RGBColor (r, g, b)</div>
+<div id="SetExternalLibLocation" class="function_signature">SetExternalLibLocation (libraryName, url)</div>
+<div class="function_title">Description</div>
+<div class="function_description">Override the URL where companion asset files for an external library can be fetched at runtime. Required when importing the engine as an ES module, because the engine cannot auto-locate asset files from inside a bundle.  Currently supports `occt-import-js` (STEP/IGES/BRep/FCStd formats). The URL should be a directory URL (trailing slash recommended) containing the three files from `node_modules/occt-import-js/dist/`: `occt-import-js-worker.js`, `occt-import-js.js`, `occt-import-js.wasm`.</div>
 <div class="function_title">Parameters</div>
 <div class="parameter_header">
-<span class="parameter_name">r</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">libraryName</span>
+<span class="type parameter_type">string</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Red component.</div>
+<div class="parameter_description">Library identifier (e.g. `&#x27;occt-import-js&#x27;`).</div>
 </div>
 <div class="parameter_header">
-<span class="parameter_name">g</span>
-<span class="type parameter_type">number</span>
+<span class="parameter_name">url</span>
+<span class="type parameter_type">string</span>
 </div>
 <div class="parameter_main">
-<div class="parameter_description">Green component.</div>
-</div>
-<div class="parameter_header">
-<span class="parameter_name">b</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Blue component.</div>
-</div>
-</div>
-<h2>Methods</h2>
-<div class="function_container">
-<div id="Set" class="function_signature">Set (r, g, b)</div>
-<div class="function_title">Description</div>
-<div class="function_description">Sets the value of all components.</div>
-<div class="function_title">Parameters</div>
-<div class="parameter_header">
-<span class="parameter_name">r</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Red component.</div>
-</div>
-<div class="parameter_header">
-<span class="parameter_name">g</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Green component.</div>
-</div>
-<div class="parameter_header">
-<span class="parameter_name">b</span>
-<span class="type parameter_type">number</span>
-</div>
-<div class="parameter_main">
-<div class="parameter_description">Blue component.</div>
-</div>
-</div>
-<div class="function_container">
-<div id="Clone" class="function_signature">Clone ()</div>
-<div class="function_title">Description</div>
-<div class="function_description">Creates a clone of the object.</div>
-<div class="function_title">Returns</div>
-<div class="function_returns">
-<span class="type parameter_type"><a href="Class_RGBColor.html" target="_self">RGBColor</a></span>
+<div class="parameter_description">Absolute or root-relative URL of the directory that contains the library&#x27;s companion files.</div>
 </div>
 </div>
 
 </div>
-<script type="text/javascript">Init ('RGBColor')</script>
+<script type="text/javascript">Init ('SetExternalLibLocation')</script>
 </body>
 
 </html>

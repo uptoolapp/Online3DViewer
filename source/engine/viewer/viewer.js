@@ -7,6 +7,7 @@ import { GetDomElementInnerDimensions } from './domutils.js';
 import { Navigation } from './navigation.js';
 import { ShadingModel } from './shadingmodel.js';
 import { ViewerModel, ViewerMainModel } from './viewermodel.js';
+import { ViewerSurfaceStrain } from './viewersurfacestrain.js';
 
 import * as THREE from 'three';
 
@@ -166,6 +167,8 @@ export class Viewer
         this.scene = null;
         this.mainModel = null;
         this.extraModel = null;
+        this.surfaceStrainModel = null;
+        this.surfaceStrain = null;
         this.camera = null;
         this.projectionMode = null;
         this.cameraValidator = null;
@@ -199,6 +202,7 @@ export class Viewer
         this.scene = new THREE.Scene ();
         this.mainModel = new ViewerMainModel (this.scene);
         this.extraModel = new ViewerModel (this.scene);
+        this.surfaceStrainModel = new ViewerModel (this.scene);
 
         this.InitNavigation ();
         this.InitShading ();
@@ -224,7 +228,16 @@ export class Viewer
     SetEdgeSettings (edgeSettings)
     {
         let newEdgeSettings = edgeSettings.Clone ();
+        // Edges copy the visibility of their mesh when they are generated, and the surface strain
+        // overlay hides the meshes, so generate them from visible meshes.
+        let hasSurfaceStrain = this.HasSurfaceStrain ();
+        if (hasSurfaceStrain) {
+            this.SetMainMeshesVisible (true);
+        }
         this.mainModel.SetEdgeSettings (newEdgeSettings);
+        if (hasSurfaceStrain) {
+            this.SetMainMeshesVisible (false);
+        }
         this.Render ();
     }
 
@@ -437,7 +450,60 @@ export class Viewer
     {
         this.mainModel.Clear ();
         this.extraModel.Clear ();
+        this.surfaceStrainModel.Clear ();
+        this.surfaceStrain = null;
         this.Render ();
+    }
+
+    /**
+     * Shows a mapped surface strain field instead of the model's meshes. Edges stay visible.
+     * @param {SurfaceStrainMapping} mapping Result of MapSurfaceStrainToModel.
+     * @param {SurfaceStrainColorScale} colorScale Color scale.
+     */
+    SetSurfaceStrain (mapping, colorScale)
+    {
+        this.surfaceStrainModel.Clear ();
+        this.surfaceStrain = new ViewerSurfaceStrain (mapping, colorScale);
+        this.surfaceStrainModel.SetRootObject (this.surfaceStrain.CreateThreeObject (this.shadingModel.type));
+        this.SetMainMeshesVisible (false);
+        this.Render ();
+    }
+
+    /**
+     * Recolors the shown surface strain without mapping it again.
+     * @param {SurfaceStrainColorScale|SurfaceStrainThresholdScale} colorScale New color scale.
+     * @returns {boolean} False if no surface strain is shown.
+     */
+    SetSurfaceStrainColorScale (colorScale)
+    {
+        if (this.surfaceStrain === null) {
+            return false;
+        }
+        this.SetSurfaceStrain (this.surfaceStrain.mapping, colorScale);
+        return true;
+    }
+
+    HasSurfaceStrain ()
+    {
+        return this.surfaceStrain !== null;
+    }
+
+    ClearSurfaceStrain ()
+    {
+        if (this.surfaceStrain === null) {
+            return;
+        }
+        this.surfaceStrainModel.Clear ();
+        this.surfaceStrain = null;
+        this.SetMainMeshesVisible (true);
+        this.Render ();
+    }
+
+    SetMainMeshesVisible (isVisible)
+    {
+        this.mainModel.EnumerateMeshes ((mesh) => {
+            mesh.visible = isVisible;
+        });
     }
 
     ClearExtra ()
