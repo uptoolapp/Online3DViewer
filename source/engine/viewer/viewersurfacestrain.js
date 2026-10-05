@@ -96,7 +96,12 @@ export class ViewerSurfaceStrain
             let materialParams = {
                 color : 0xffffff,
                 vertexColors : !isThreshold,
-                side : THREE.DoubleSide
+                side : THREE.DoubleSide,
+                // The edges stay visible on top of the overlay and lie on the same surface, so push
+                // the overlay back like the main meshes, otherwise the edges flicker.
+                polygonOffset : true,
+                polygonOffsetFactor : 1,
+                polygonOffsetUnits : 1
             };
             let material = null;
             if (shadingType === ShadingType.Physical) {

@@ -17,7 +17,7 @@ export function SetThreeMeshPolygonOffset (mesh, offset)
     {
         for (let material of materials) {
             material.polygonOffset = offset;
-            material.polygonOffsetUnit = 1;
+            material.polygonOffsetUnits = 1;
             material.polygonOffsetFactor = 1;
         }
     }
