@@ -227,6 +227,10 @@ bracket the range where parts separate: on the 105-part corpus, 10 µε at p99.9
 parts, all with a first mode below 1 kHz. Auto-scaling each part to its own
 `strain_log10_low..high` makes every part look equally hot, so if you offer it, label it as relative.
 
+**Edges on top:** the refined mesh lies exactly on the BREP faces, so feature edges drawn from the
+same tessellation sit at the same depth as the coloured surface and flicker against it. Draw the
+coloured surface with a polygon offset (or the equivalent depth bias) so the edges stay on top.
+
 ## Showing the modes
 
 - **Hover or pick:** show the strain at the vertex in microstrain, and the driving mode's

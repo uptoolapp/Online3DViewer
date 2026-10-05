@@ -66,8 +66,15 @@ All names are exported from `online-3d-viewer`.
   | `maxFailedFraction`     | `0.005`                               | The mapping fails if more vertices than this can't reach the FE surface.                         |
   | `mappingParams.maxVertexCount` | `4000000`                      | Refinement budget.                                                                               |
 
-- The promise **never rejects**. Failures resolve with `ok: false`.
+- The promise **never rejects**. Failures, including unexpected errors during the mapping, resolve
+  with `ok: false`.
 - Any previous overlay is removed first.
+- The mapping runs after a `setTimeout` (see [Performance](#performance)). If `ClearSurfaceStrain`
+  is called, a new model starts loading, or the viewer is destroyed in that gap, the call resolves
+  with `ok: false` and nothing is painted.
+- A later `ShowSurfaceStrain` doesn't cancel an earlier one. Both run in order, and the last one
+  that succeeds is shown. If the later call fails, the earlier call's overlay stays on screen, so
+  use the `ok` of the call you care about, not the screen, to decide what to show.
 
 `SurfaceStrainResult`:
 
@@ -84,6 +91,8 @@ Failure reasons the host may see (the texts aren't stable, don't parse them):
 
 - The file is invalid: bad magic, unsupported version, or a length that disagrees with the header.
 - `no model is loaded`, or `the model is empty`.
+- `the model changed or the surface strain was cleared before it was shown`: superseded by a
+  clear or a model load.
 - `unit mismatch, …`: the artifact fits the model only in another unit.
 - `bounding box size differs …`, or `bounding box position differs …`: another part, or a moved model.
 - `N of M vertices are farther than …`: the surfaces don't line up.
@@ -102,7 +111,8 @@ thresholds) it returns `ok: false` with a reason, and the current colours stay.
 
 ### `EmbeddedViewer.ClearSurfaceStrain ()`
 
-Removes the overlay and shows the model's own colours again. Safe to call at any time.
+Removes the overlay and shows the model's own colours again. Safe to call at any time. It also
+cancels a `ShowSurfaceStrain` that hasn't run its mapping yet.
 
 ### `OV.IsSurfaceStrainSourceFile (stepArrayBuffer, sha256Hex) → Promise<boolean>`
 
@@ -124,10 +134,15 @@ LoadModelFromUrlList (another file)  ──► the overlay is cleared automatica
 Destroy ()                           ──► everything is freed
 ```
 
-- Loading a new model always clears the overlay. Call `ShowSurfaceStrain` again after the next
-  `onModelLoaded`.
+- Loading a new model always clears the overlay and cancels a pending `ShowSurfaceStrain`. Call
+  `ShowSurfaceStrain` again after the next `onModelLoaded`.
 - Applying edge settings or projection mode from the `ov_*` cookies is safe before or after
-  `ShowSurfaceStrain`. Edges stay visible on top of the overlay.
+  `ShowSurfaceStrain`. Edges stay visible on top of the overlay, and the overlay is drawn with a
+  polygon offset so they don't flicker against it.
+- Per-mesh visibility set through `GetViewer ().SetMeshesVisibility (…)` is kept. A mesh the host
+  hid stays hidden while the overlay is shown and after it's cleared, its edges stay hidden, and
+  its part of the overlay is hidden too. `SetMeshesVisibility` can be called before or after
+  `ShowSurfaceStrain`.
 - While the overlay is shown, the model's own meshes are hidden. `GetMeshUserDataUnderMouse`,
   `GetMeshIntersectionUnderMouse` and the measure tool don't hit anything.
 - The overlay is display only. There is no hover or picking of strain values.
@@ -225,7 +240,10 @@ viewer.LoadModelFromUrlList([fileUrl]);
 
 ## Compatibility
 
-- **Non-breaking.** Existing calls behave as before. The OCCT importer now also stores the BREP face
-  ranges on each mesh (`Mesh.GetBrepFaces ()`), which changes nothing else.
+- **Non-breaking.** Existing calls behave as before, with these small differences:
+  - The OCCT importer now also stores the BREP face ranges on each mesh (`Mesh.GetBrepFaces ()`).
+  - `Viewer.SetMeshesVisibility` stores the host's choice on each mesh's `userData.userVisible`.
+  - The polygon offset that keeps edges on top of the model now sets `polygonOffsetUnits`, which a
+    typo had left unset. Models with edges or lines sit very slightly further back in depth.
 - **Versioning.** Only artifact version `1` is accepted. A newer artifact version resolves with
   `ok: false`, and it needs a package update. New header keys are ignored.
