@@ -228,16 +228,10 @@ export class Viewer
     SetEdgeSettings (edgeSettings)
     {
         let newEdgeSettings = edgeSettings.Clone ();
-        // Edges copy the visibility of their mesh when they are generated, and the surface strain
-        // overlay hides the meshes, so generate them from visible meshes.
-        let hasSurfaceStrain = this.HasSurfaceStrain ();
-        if (hasSurfaceStrain) {
-            this.SetMainMeshesVisible (true);
-        }
         this.mainModel.SetEdgeSettings (newEdgeSettings);
-        if (hasSurfaceStrain) {
-            this.SetMainMeshesVisible (false);
-        }
+        // Generated edges copy the visibility of their mesh, which the surface strain overlay may
+        // have hidden, so apply the visibility again.
+        this.UpdateMeshesVisibility ();
         this.Render ();
     }
 
@@ -465,7 +459,7 @@ export class Viewer
         this.surfaceStrainModel.Clear ();
         this.surfaceStrain = new ViewerSurfaceStrain (mapping, colorScale);
         this.surfaceStrainModel.SetRootObject (this.surfaceStrain.CreateThreeObject (this.shadingModel.type));
-        this.SetMainMeshesVisible (false);
+        this.UpdateMeshesVisibility ();
         this.Render ();
     }
 
@@ -495,15 +489,8 @@ export class Viewer
         }
         this.surfaceStrainModel.Clear ();
         this.surfaceStrain = null;
-        this.SetMainMeshesVisible (true);
+        this.UpdateMeshesVisibility ();
         this.Render ();
-    }
-
-    SetMainMeshesVisible (isVisible)
-    {
-        this.mainModel.EnumerateMeshes ((mesh) => {
-            mesh.visible = isVisible;
-        });
     }
 
     ClearExtra ()
@@ -514,19 +501,39 @@ export class Viewer
 
     SetMeshesVisibility (isVisible)
     {
+        // The caller's choice is kept on userData, separate from the surface strain overlay hiding
+        // the meshes. Edges share the userData of their mesh.
         this.mainModel.EnumerateMeshesAndLines ((mesh) => {
-            let visible = isVisible (mesh.userData);
-            if (mesh.visible !== visible) {
+            mesh.userData.userVisible = isVisible (mesh.userData);
+        });
+        this.UpdateMeshesVisibility ();
+        this.Render ();
+    }
+
+    UpdateMeshesVisibility ()
+    {
+        let hasSurfaceStrain = this.HasSurfaceStrain ();
+        let hiddenMeshInstances = new Set ();
+        this.mainModel.EnumerateMeshesAndLines ((mesh) => {
+            let visible = (mesh.userData.userVisible !== false);
+            if (mesh.isMesh) {
+                if (!visible) {
+                    hiddenMeshInstances.add (mesh.userData.originalMeshInstance.id.GetKey ());
+                }
+                // The overlay replaces the meshes, but not the lines.
+                mesh.visible = visible && !hasSurfaceStrain;
+            } else {
                 mesh.visible = visible;
             }
         });
         this.mainModel.EnumerateEdges ((edge) => {
-            let visible = isVisible (edge.userData);
-            if (edge.visible !== visible) {
-                edge.visible = visible;
+            edge.visible = (edge.userData.userVisible !== false);
+        });
+        this.surfaceStrainModel.Traverse ((obj) => {
+            if (obj.isMesh) {
+                obj.visible = !hiddenMeshInstances.has (obj.userData.surfaceStrain.meshInstanceId.GetKey ());
             }
         });
-        this.Render ();
     }
 
     SetMeshesHighlight (highlightColor, isHighlighted)

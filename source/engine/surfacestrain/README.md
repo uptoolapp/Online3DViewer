@@ -93,7 +93,7 @@ Two points drive the design:
      │     └─ ViewerSurfaceStrain.CreateThreeObject    viewersurfacestrain.js
      │          one indexed BufferGeometry per instance, color attribute,
      │          userData.surfaceStrain = mesh result (for recolouring)
-     └─ SetMainMeshesVisible(false)   original meshes hidden, edges kept
+     └─ UpdateMeshesVisibility        original meshes hidden, edges kept
 ```
 
 ## Walkthrough
