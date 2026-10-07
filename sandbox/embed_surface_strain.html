@@ -57,6 +57,7 @@
                 let start = performance.now ();
                 viewer.ShowSurfaceStrain (strainBuffer, params).then ((result) => {
                     if (!result.ok) {
+                        viewer.ClearSurfaceStrain ();
                         statusDiv.textContent = 'Not shown: ' + result.reason;
                         return;
                     }

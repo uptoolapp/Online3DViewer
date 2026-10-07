@@ -216,9 +216,10 @@ export class EmbeddedViewer
     /**
      * Paints the vibration strain of a surface_strain.bin onto the loaded model. The artifact is in
      * metres, it is converted to the model's unit and checked against the model's bounding box
-     * first. If it doesn't belong to the model, nothing is shown. If a new model starts loading or
-     * ClearSurfaceStrain is called before the mapping runs, it resolves with ok false and nothing
-     * is painted.
+     * first. If it doesn't belong to the model, nothing is painted. A shown overlay is replaced only
+     * on success, so it stays on screen while the mapping runs and after a failed call. If a new
+     * model starts loading or ClearSurfaceStrain is called before the mapping runs, it resolves
+     * with ok false and nothing is painted.
      * @param {ArrayBuffer} buffer Content of surface_strain.bin.
      * @param {SurfaceStrainParams} [params] Parameters.
      * @returns {Promise<SurfaceStrainResult>} Resolves with ok false and a reason on failure.
@@ -226,8 +227,6 @@ export class EmbeddedViewer
     ShowSurfaceStrain (buffer, params)
     {
         return new Promise ((resolve) => {
-            this.viewer.ClearSurfaceStrain ();
-            this.surfaceStrainHeader = null;
             if (this.model === null) {
                 let result = new SurfaceStrainResult ();
                 result.reason = 'no model is loaded';

@@ -227,7 +227,7 @@
 <div class="function_container">
 <div id="ShowSurfaceStrain" class="function_signature">ShowSurfaceStrain (buffer, params)</div>
 <div class="function_title">Description</div>
-<div class="function_description">Paints the vibration strain of a surface_strain.bin onto the loaded model. The artifact is in metres, it is converted to the model&#x27;s unit and checked against the model&#x27;s bounding box first. If it doesn&#x27;t belong to the model, nothing is shown.</div>
+<div class="function_description">Paints the vibration strain of a surface_strain.bin onto the loaded model. The artifact is in metres, it is converted to the model&#x27;s unit and checked against the model&#x27;s bounding box first. If it doesn&#x27;t belong to the model, nothing is painted. A shown overlay is replaced only on success, so it stays on screen while the mapping runs and after a failed call. If a new model starts loading or ClearSurfaceStrain is called before the mapping runs, it resolves with ok false and nothing is painted.</div>
 <div class="function_title">Parameters</div>
 <div class="parameter_header">
 <span class="parameter_name">buffer</span>

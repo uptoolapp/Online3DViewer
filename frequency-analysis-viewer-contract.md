@@ -68,13 +68,15 @@ All names are exported from `online-3d-viewer`.
 
 - The promise **never rejects**. Failures, including unexpected errors during the mapping, resolve
   with `ok: false`.
-- Any previous overlay is removed first.
+- A shown overlay is replaced only when the call succeeds. It stays on screen while the mapping
+  runs, and it also stays if the call fails.
 - The mapping runs after a `setTimeout` (see [Performance](#performance)). If `ClearSurfaceStrain`
   is called, a new model starts loading, or the viewer is destroyed in that gap, the call resolves
   with `ok: false` and nothing is painted.
 - A later `ShowSurfaceStrain` doesn't cancel an earlier one. Both run in order, and the last one
-  that succeeds is shown. If the later call fails, the earlier call's overlay stays on screen, so
-  use the `ok` of the call you care about, not the screen, to decide what to show.
+  that succeeds is shown, whatever the timing. If the later call fails, the earlier call's overlay
+  stays on screen, so use the `ok` of the call you care about, not the screen, to decide what to
+  show.
 
 `SurfaceStrainResult`:
 
@@ -99,8 +101,9 @@ Failure reasons the host may see (the texts aren't stable, don't parse them):
 - `threshold N …`, or `thresholds must be …`: invalid `thresholds`. This is checked before the
   mapping, so it fails fast.
 
-When `ok` is `false`, **show nothing on the model**. Show a neutral message such as "Vibration map
-unavailable for this file". Never fall back to a guessed heat map.
+When `ok` is `false`, **show nothing on the model**. If an earlier overlay may still be shown, call
+`ClearSurfaceStrain` to remove it. Show a neutral message such as "Vibration map unavailable for
+this file". Never fall back to a guessed heat map.
 
 ### `EmbeddedViewer.SetSurfaceStrainColors (params) → { ok, reason, colorScale }`
 
