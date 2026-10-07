@@ -5,6 +5,8 @@ import { ImportErrorCode, ImportSettings } from '../import/importer.js';
 import { TransformFileHostUrls } from '../io/fileutils.js';
 import { ParameterConverter } from '../parameters/parameterlist.js';
 import { ThreeModelLoader } from '../threejs/threemodelloader.js';
+import { PrepareSurfaceStrain, SurfaceStrainParams, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
+import { CreateSurfaceStrainColorScale } from '../surfacestrain/surfacestraincolor.js';
 import { Viewer } from './viewer.js';
 import { EnvironmentSettings } from './shadingmodel.js';
 import { Loc } from '../core/localization.js';
@@ -69,6 +71,10 @@ export class EmbeddedViewer
 
         this.model = null;
         this.modelLoader = new ThreeModelLoader ();
+        this.surfaceStrainHeader = null;
+        // Bumped whenever a pending ShowSurfaceStrain must not paint anymore: the model changed,
+        // the strain was cleared, or the viewer was destroyed.
+        this.surfaceStrainRequest = 0;
 
         this.progressDiv = null;
         window.addEventListener ('resize', () => {
@@ -122,6 +128,8 @@ export class EmbeddedViewer
         }
 
         this.model = null;
+        this.surfaceStrainHeader = null;
+        this.surfaceStrainRequest += 1;
         if (this.progressDiv !== null) {
             this.parentElement.removeChild (this.progressDiv);
             this.progressDiv = null;
@@ -206,6 +214,84 @@ export class EmbeddedViewer
     }
 
     /**
+     * Paints the vibration strain of a surface_strain.bin onto the loaded model. The artifact is in
+     * metres, it is converted to the model's unit and checked against the model's bounding box
+     * first. If it doesn't belong to the model, nothing is painted. A shown overlay is replaced only
+     * on success, so it stays on screen while the mapping runs and after a failed call. If a new
+     * model starts loading or ClearSurfaceStrain is called before the mapping runs, it resolves
+     * with ok false and nothing is painted.
+     * @param {ArrayBuffer} buffer Content of surface_strain.bin.
+     * @param {SurfaceStrainParams} [params] Parameters.
+     * @returns {Promise<SurfaceStrainResult>} Resolves with ok false and a reason on failure.
+     */
+    ShowSurfaceStrain (buffer, params)
+    {
+        return new Promise ((resolve) => {
+            if (this.model === null) {
+                let result = new SurfaceStrainResult ();
+                result.reason = 'no model is loaded';
+                resolve (result);
+                return;
+            }
+            let model = this.model;
+            let request = this.surfaceStrainRequest;
+            // Let the browser render before the mapping blocks the main thread.
+            setTimeout (() => {
+                let result = new SurfaceStrainResult ();
+                if (request !== this.surfaceStrainRequest || this.model !== model) {
+                    result.reason = 'the model changed or the surface strain was cleared before it was shown';
+                    resolve (result);
+                    return;
+                }
+                try {
+                    result = PrepareSurfaceStrain (model, buffer, params);
+                    if (result.ok) {
+                        this.surfaceStrainHeader = result.header;
+                        this.viewer.SetSurfaceStrain (result.mapping, result.colorScale);
+                    }
+                } catch (error) {
+                    result = new SurfaceStrainResult ();
+                    result.reason = error.message;
+                }
+                resolve (result);
+            }, 0);
+        });
+    }
+
+    /**
+     * Changes the colors of the shown surface strain without mapping it again, for example to
+     * switch to threshold bands or to change them. Only the color fields of params are used:
+     * thresholds, belowThresholdColor and colorRange.
+     * @param {SurfaceStrainParams} params Color parameters.
+     * @returns {{ok: boolean, reason: string|null, colorScale: object|null}} On failure the
+     * current colors stay.
+     */
+    SetSurfaceStrainColors (params)
+    {
+        if (!this.viewer.HasSurfaceStrain () || this.surfaceStrainHeader === null) {
+            return { ok : false, reason : 'no surface strain is shown', colorScale : null };
+        }
+        let colorScale = null;
+        try {
+            colorScale = CreateSurfaceStrainColorScale (params || new SurfaceStrainParams (), this.surfaceStrainHeader);
+        } catch (error) {
+            return { ok : false, reason : error.message, colorScale : null };
+        }
+        this.viewer.SetSurfaceStrainColorScale (colorScale);
+        return { ok : true, reason : null, colorScale : colorScale };
+    }
+
+    /**
+     * Removes the surface strain and shows the model's own colors again.
+     */
+    ClearSurfaceStrain ()
+    {
+        this.viewer.ClearSurfaceStrain ();
+        this.surfaceStrainHeader = null;
+        this.surfaceStrainRequest += 1;
+    }
+
+    /**
      * This method must be called when the size of the parent element changes to make sure that the
      * context has the same dimensions as the parent element.
      */
@@ -225,6 +311,7 @@ export class EmbeddedViewer
         this.modelLoader.Destroy ();
         this.viewer.Destroy ();
         this.model = null;
+        this.surfaceStrainRequest += 1;
     }
 }
 

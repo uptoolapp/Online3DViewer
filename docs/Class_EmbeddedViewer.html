@@ -43,12 +43,26 @@
 <div id="nav-InputFile" class="navigation_item"><a href="Class_InputFile.html" target="_self">InputFile</a></div>
 <div id="nav-RGBAColor" class="navigation_item"><a href="Class_RGBAColor.html" target="_self">RGBAColor</a></div>
 <div id="nav-RGBColor" class="navigation_item"><a href="Class_RGBColor.html" target="_self">RGBColor</a></div>
+<div id="nav-SurfaceStrainIndex" class="navigation_item"><a href="Class_SurfaceStrainIndex.html" target="_self">SurfaceStrainIndex</a></div>
+<div id="nav-SurfaceStrainThresholdScale" class="navigation_item"><a href="Class_SurfaceStrainThresholdScale.html" target="_self">SurfaceStrainThresholdScale</a></div>
+<div id="nav-ViewerSurfaceStrain" class="navigation_item"><a href="Class_ViewerSurfaceStrain.html" target="_self">ViewerSurfaceStrain</a></div>
 </div>
 <div class="navigation_section">
 <div class="navigation_title">Functions</div>
+<div id="nav-CheckSurfaceStrainFrameAtScale" class="navigation_item"><a href="Function_CheckSurfaceStrainFrameAtScale.html" target="_self">CheckSurfaceStrainFrameAtScale</a></div>
+<div id="nav-ConvertSurfaceStrainToUnit" class="navigation_item"><a href="Function_ConvertSurfaceStrainToUnit.html" target="_self">ConvertSurfaceStrainToUnit</a></div>
+<div id="nav-CreateSurfaceStrainColorScale" class="navigation_item"><a href="Function_CreateSurfaceStrainColorScale.html" target="_self">CreateSurfaceStrainColorScale</a></div>
+<div id="nav-DecodeSurfaceStrain" class="navigation_item"><a href="Function_DecodeSurfaceStrain.html" target="_self">DecodeSurfaceStrain</a></div>
+<div id="nav-GetMetreToUnitScale" class="navigation_item"><a href="Function_GetMetreToUnitScale.html" target="_self">GetMetreToUnitScale</a></div>
 <div id="nav-Init3DViewerElements" class="navigation_item"><a href="Function_Init3DViewerElements.html" target="_self">Init3DViewerElements</a></div>
 <div id="nav-Init3DViewerFromFileList" class="navigation_item"><a href="Function_Init3DViewerFromFileList.html" target="_self">Init3DViewerFromFileList</a></div>
 <div id="nav-Init3DViewerFromUrlList" class="navigation_item"><a href="Function_Init3DViewerFromUrlList.html" target="_self">Init3DViewerFromUrlList</a></div>
+<div id="nav-IsSurfaceStrainSourceFile" class="navigation_item"><a href="Function_IsSurfaceStrainSourceFile.html" target="_self">IsSurfaceStrainSourceFile</a></div>
+<div id="nav-MapSurfaceStrainToModel" class="navigation_item"><a href="Function_MapSurfaceStrainToModel.html" target="_self">MapSurfaceStrainToModel</a></div>
+<div id="nav-MatchSurfaceStrainFrame" class="navigation_item"><a href="Function_MatchSurfaceStrainFrame.html" target="_self">MatchSurfaceStrainFrame</a></div>
+<div id="nav-PrepareSurfaceStrain" class="navigation_item"><a href="Function_PrepareSurfaceStrain.html" target="_self">PrepareSurfaceStrain</a></div>
+<div id="nav-RefineTriangles" class="navigation_item"><a href="Function_RefineTriangles.html" target="_self">RefineTriangles</a></div>
+<div id="nav-SetExternalLibLocation" class="navigation_item"><a href="Function_SetExternalLibLocation.html" target="_self">SetExternalLibLocation</a></div>
 </div>
 <div class="navigation_section">
 <div class="navigation_title">Enums</div>
@@ -209,6 +223,55 @@
 <div class="function_returns">
 <span class="type parameter_type">Model</span>
 </div>
+</div>
+<div class="function_container">
+<div id="ShowSurfaceStrain" class="function_signature">ShowSurfaceStrain (buffer, params)</div>
+<div class="function_title">Description</div>
+<div class="function_description">Paints the vibration strain of a surface_strain.bin onto the loaded model. The artifact is in metres, it is converted to the model&#x27;s unit and checked against the model&#x27;s bounding box first. If it doesn&#x27;t belong to the model, nothing is painted. A shown overlay is replaced only on success, so it stays on screen while the mapping runs and after a failed call. If a new model starts loading or ClearSurfaceStrain is called before the mapping runs, it resolves with ok false and nothing is painted.</div>
+<div class="function_title">Parameters</div>
+<div class="parameter_header">
+<span class="parameter_name">buffer</span>
+<span class="type parameter_type">ArrayBuffer</span>
+</div>
+<div class="parameter_main">
+<div class="parameter_description">Content of surface_strain.bin.</div>
+</div>
+<div class="parameter_header">
+<span class="parameter_name">params</span>
+<span class="type parameter_type">SurfaceStrainParams</span>
+<span class="parameter_attributes">(optional)</span>
+</div>
+<div class="parameter_main">
+<div class="parameter_description">Parameters.</div>
+</div>
+<div class="function_title">Returns</div>
+<div class="function_returns">
+<span class="type parameter_type">Promise.&lt;SurfaceStrainResult&gt;</span>
+<span class="return_description">Resolves with ok false and a reason on failure.</span>
+</div>
+</div>
+<div class="function_container">
+<div id="SetSurfaceStrainColors" class="function_signature">SetSurfaceStrainColors (params)</div>
+<div class="function_title">Description</div>
+<div class="function_description">Changes the colors of the shown surface strain without mapping it again, for example to switch to threshold bands or to change them. Only the color fields of params are used: thresholds, belowThresholdColor and colorRange.</div>
+<div class="function_title">Parameters</div>
+<div class="parameter_header">
+<span class="parameter_name">params</span>
+<span class="type parameter_type">SurfaceStrainParams</span>
+</div>
+<div class="parameter_main">
+<div class="parameter_description">Color parameters.</div>
+</div>
+<div class="function_title">Returns</div>
+<div class="function_returns">
+<span class="type parameter_type">Object</span>
+<span class="return_description">On failure the current colors stay.</span>
+</div>
+</div>
+<div class="function_container">
+<div id="ClearSurfaceStrain" class="function_signature">ClearSurfaceStrain ()</div>
+<div class="function_title">Description</div>
+<div class="function_description">Removes the surface strain and shows the model&#x27;s own colors again.</div>
 </div>
 <div class="function_container">
 <div id="Resize" class="function_signature">Resize ()</div>

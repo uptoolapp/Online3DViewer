@@ -7,6 +7,7 @@ import { GetDomElementInnerDimensions } from './domutils.js';
 import { Navigation } from './navigation.js';
 import { ShadingModel } from './shadingmodel.js';
 import { ViewerModel, ViewerMainModel } from './viewermodel.js';
+import { ViewerSurfaceStrain } from './viewersurfacestrain.js';
 
 import * as THREE from 'three';
 
@@ -166,6 +167,8 @@ export class Viewer
         this.scene = null;
         this.mainModel = null;
         this.extraModel = null;
+        this.surfaceStrainModel = null;
+        this.surfaceStrain = null;
         this.camera = null;
         this.projectionMode = null;
         this.cameraValidator = null;
@@ -199,6 +202,7 @@ export class Viewer
         this.scene = new THREE.Scene ();
         this.mainModel = new ViewerMainModel (this.scene);
         this.extraModel = new ViewerModel (this.scene);
+        this.surfaceStrainModel = new ViewerModel (this.scene);
 
         this.InitNavigation ();
         this.InitShading ();
@@ -225,6 +229,9 @@ export class Viewer
     {
         let newEdgeSettings = edgeSettings.Clone ();
         this.mainModel.SetEdgeSettings (newEdgeSettings);
+        // Generated edges copy the visibility of their mesh, which the surface strain overlay may
+        // have hidden, so apply the visibility again.
+        this.UpdateMeshesVisibility ();
         this.Render ();
     }
 
@@ -437,6 +444,52 @@ export class Viewer
     {
         this.mainModel.Clear ();
         this.extraModel.Clear ();
+        this.surfaceStrainModel.Clear ();
+        this.surfaceStrain = null;
+        this.Render ();
+    }
+
+    /**
+     * Shows a mapped surface strain field instead of the model's meshes. Edges stay visible.
+     * @param {SurfaceStrainMapping} mapping Result of MapSurfaceStrainToModel.
+     * @param {SurfaceStrainColorScale} colorScale Color scale.
+     */
+    SetSurfaceStrain (mapping, colorScale)
+    {
+        this.surfaceStrainModel.Clear ();
+        this.surfaceStrain = new ViewerSurfaceStrain (mapping, colorScale);
+        this.surfaceStrainModel.SetRootObject (this.surfaceStrain.CreateThreeObject (this.shadingModel.type));
+        this.UpdateMeshesVisibility ();
+        this.Render ();
+    }
+
+    /**
+     * Recolors the shown surface strain without mapping it again.
+     * @param {SurfaceStrainColorScale|SurfaceStrainThresholdScale} colorScale New color scale.
+     * @returns {boolean} False if no surface strain is shown.
+     */
+    SetSurfaceStrainColorScale (colorScale)
+    {
+        if (this.surfaceStrain === null) {
+            return false;
+        }
+        this.SetSurfaceStrain (this.surfaceStrain.mapping, colorScale);
+        return true;
+    }
+
+    HasSurfaceStrain ()
+    {
+        return this.surfaceStrain !== null;
+    }
+
+    ClearSurfaceStrain ()
+    {
+        if (this.surfaceStrain === null) {
+            return;
+        }
+        this.surfaceStrainModel.Clear ();
+        this.surfaceStrain = null;
+        this.UpdateMeshesVisibility ();
         this.Render ();
     }
 
@@ -448,19 +501,39 @@ export class Viewer
 
     SetMeshesVisibility (isVisible)
     {
+        // The caller's choice is kept on userData, separate from the surface strain overlay hiding
+        // the meshes. Edges share the userData of their mesh.
         this.mainModel.EnumerateMeshesAndLines ((mesh) => {
-            let visible = isVisible (mesh.userData);
-            if (mesh.visible !== visible) {
+            mesh.userData.userVisible = isVisible (mesh.userData);
+        });
+        this.UpdateMeshesVisibility ();
+        this.Render ();
+    }
+
+    UpdateMeshesVisibility ()
+    {
+        let hasSurfaceStrain = this.HasSurfaceStrain ();
+        let hiddenMeshInstances = new Set ();
+        this.mainModel.EnumerateMeshesAndLines ((mesh) => {
+            let visible = (mesh.userData.userVisible !== false);
+            if (mesh.isMesh) {
+                if (!visible) {
+                    hiddenMeshInstances.add (mesh.userData.originalMeshInstance.id.GetKey ());
+                }
+                // The overlay replaces the meshes, but not the lines.
+                mesh.visible = visible && !hasSurfaceStrain;
+            } else {
                 mesh.visible = visible;
             }
         });
         this.mainModel.EnumerateEdges ((edge) => {
-            let visible = isVisible (edge.userData);
-            if (edge.visible !== visible) {
-                edge.visible = visible;
+            edge.visible = (edge.userData.userVisible !== false);
+        });
+        this.surfaceStrainModel.Traverse ((obj) => {
+            if (obj.isMesh) {
+                obj.visible = !hiddenMeshInstances.has (obj.userData.surfaceStrain.meshInstanceId.GetKey ());
             }
         });
-        this.Render ();
     }
 
     SetMeshesHighlight (highlightColor, isHighlighted)

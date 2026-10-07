@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="content-type" content="text/html;charset=utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+
+	<title>Online 3D Viewer</title>
+
+	<script type="text/javascript" src="../build/engine_dev/o3dv.min.js"></script>
+
+    <script type='text/javascript'>
+        // Files can be picked, or given in the query string:
+        // embed_surface_strain.html?model=<step url>&strain=<bin url>&thresholds=<json list>
+        window.addEventListener ('load', () => {
+            let parentDiv = document.getElementById ('viewer');
+            let statusDiv = document.getElementById ('status');
+            let thresholdsInput = document.getElementById ('thresholds');
+            let strainBuffer = null;
+            let modelLoaded = false;
+
+            let viewer = new OV.EmbeddedViewer (parentDiv, {
+                backgroundColor : new OV.RGBAColor (255, 255, 255, 255),
+                edgeSettings : new OV.EdgeSettings (true, new OV.RGBColor (0, 0, 0), 30),
+                onModelLoaded : () => {
+                    modelLoaded = true;
+                    ShowStrain ();
+                }
+            });
+
+            function GetColorParams ()
+            {
+                let params = new OV.SurfaceStrainParams ();
+                if (document.getElementById ('relative').checked) {
+                    params.colorRange = OV.SurfaceStrainColorRange.Relative;
+                }
+                let text = thresholdsInput.value.trim ();
+                if (text.length > 0) {
+                    params.thresholds = JSON.parse (text);
+                }
+                return params;
+            }
+
+            function ShowStrain ()
+            {
+                if (!modelLoaded || strainBuffer === null) {
+                    return;
+                }
+                let params = null;
+                try {
+                    params = GetColorParams ();
+                } catch (error) {
+                    statusDiv.textContent = 'Invalid thresholds JSON: ' + error.message;
+                    return;
+                }
+                statusDiv.textContent = 'Mapping...';
+                let start = performance.now ();
+                viewer.ShowSurfaceStrain (strainBuffer, params).then ((result) => {
+                    if (!result.ok) {
+                        viewer.ClearSurfaceStrain ();
+                        statusDiv.textContent = 'Not shown: ' + result.reason;
+                        return;
+                    }
+                    let mapping = result.mapping;
+                    statusDiv.textContent = 'Relative vibration strain at ' + (result.header.reference_acceleration_m_s2 / 9.80665).toFixed (0) + ' g, ' +
+                        result.header.element_type + ', unit ' + OV.SurfaceStrainUnitToString (result.unit) + ', ' +
+                        mapping.vertexCount + ' vertices, ' + mapping.failedCount + ' failed' + (mapping.capped ? ', capped' : '') +
+                        ', ' + Math.round (performance.now () - start) + ' ms';
+                    document.body.setAttribute ('data-strain-shown', 'true');
+                });
+            }
+
+            function ApplyColors ()
+            {
+                let params = null;
+                try {
+                    params = GetColorParams ();
+                } catch (error) {
+                    statusDiv.textContent = 'Invalid thresholds JSON: ' + error.message;
+                    return;
+                }
+                let result = viewer.SetSurfaceStrainColors (params);
+                statusDiv.textContent = result.ok ? 'Colors applied' : 'Colors not applied: ' + result.reason;
+            }
+
+            document.getElementById ('model').addEventListener ('change', (ev) => {
+                modelLoaded = false;
+                viewer.LoadModelFromFileList (Array.from (ev.target.files));
+            });
+            document.getElementById ('strain').addEventListener ('change', (ev) => {
+                ev.target.files[0].arrayBuffer ().then ((buffer) => {
+                    strainBuffer = buffer;
+                    ShowStrain ();
+                });
+            });
+            document.getElementById ('relative').addEventListener ('change', ApplyColors);
+            document.getElementById ('apply').addEventListener ('click', ApplyColors);
+            document.getElementById ('clear').addEventListener ('click', () => {
+                viewer.ClearSurfaceStrain ();
+                statusDiv.textContent = 'Cleared';
+            });
+
+            let query = new URLSearchParams (window.location.search);
+            if (query.has ('thresholds')) {
+                thresholdsInput.value = query.get ('thresholds');
+            }
+            if (query.has ('model') && query.has ('strain')) {
+                fetch (query.get ('strain')).then ((response) => response.arrayBuffer ()).then ((buffer) => {
+                    strainBuffer = buffer;
+                    viewer.LoadModelFromUrlList ([query.get ('model')]);
+                });
+            }
+        });
+    </script>
+
+    <style>
+        body { font-family: sans-serif; font-size: 14px; }
+        #viewer { width: 960px; height: 600px; border: 1px solid #eeeeee; }
+        #thresholds { width: 560px; font-family: monospace; }
+        .row { margin: 6px 0px; }
+    </style>
+</head>
+
+<body>
+    <div class="row">
+        STEP <input type="file" id="model" accept=".stp,.step">
+        surface_strain.bin <input type="file" id="strain" accept=".bin">
+        <label><input type="checkbox" id="relative"> relative range</label>
+        <button id="clear">Clear</button>
+    </div>
+    <div class="row">
+        Thresholds
+        <input type="text" id="thresholds" placeholder='[{"color":"#ff0000","strain":100},{"color":"#ffa500","strain":50},{"color":"#ffff00","strain":25}]'>
+        <button id="apply">Apply colors</button>
+    </div>
+    <div class="row" id="status"></div>
+    <div id="viewer"></div>
+</body>
+
+</html>

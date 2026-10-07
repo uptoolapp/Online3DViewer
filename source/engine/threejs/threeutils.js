@@ -231,7 +231,7 @@ export function CreateHighlightMaterial (originalMaterial, highlightColor, withP
     }
     if (material !== null && withPolygonOffset) {
         material.polygonOffset = true;
-        material.polygonOffsetUnit = 1;
+        material.polygonOffsetUnits = 1;
         material.polygonOffsetFactor = 1;
     }
     return material;
