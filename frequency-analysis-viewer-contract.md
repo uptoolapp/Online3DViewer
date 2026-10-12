@@ -262,17 +262,26 @@ is specific to strain. The other edge fields (`edge_index`, `face_indices`, `ang
 
   | Field            | Default              | Meaning                                                                          |
   | ---------------- | -------------------- | -------------------------------------------------------------------------------- |
-  | `unit`           | `OV.Unit.Millimeter` | Unit of the coordinates. They are converted to the model's unit. If the model's unit is unknown, they are used as they are. |
-  | `width`          | `4`                  | Default line width in CSS pixels. Lines keep this width at any zoom.            |
-  | `frameTolerance` | `0.01`               | Every point must lie inside the model's bounding box, grown by this fraction of its diagonal. |
+  | `unit`             | `OV.Unit.Millimeter` | Unit of the coordinates: `Millimeter`, `Centimeter`, `Meter`, `Inch` or `Foot`. They are converted to the model's unit. If the model's unit is unknown, they are used as they are. |
+  | `width`            | `4`                  | Default line width in CSS pixels. Lines keep this width at any zoom.          |
+  | `surfaceTolerance` | `0.002`              | Every point must lie this close to the model's surface, as a fraction of the largest size of its bounding box. That is twice the deflection the viewer tessellates STEP with. |
 
 - `EdgeHighlightResult` is `{ ok, reason, edgeCount }`.
 - The call is **synchronous** and **never throws**. Call it after `onModelLoaded`. Before that it
   returns `ok: false` with `no model is loaded`.
 - It is **all or nothing**. One invalid edge fails the whole call, and `reason` names it, for
   example `edge 3: polyline needs at least 2 points`. A colour that isn't hex, a coordinate that
-  isn't finite, a width that isn't positive, and a point outside the model (the wrong part, or the
-  wrong unit) are refused the same way. The texts aren't stable, so don't parse them.
+  isn't finite, a width that isn't positive and an unsupported `unit` are refused the same way.
+  The texts aren't stable, so don't parse them.
+- **Same part, same unit.** The polylines are tessellation vertices of the part's own edges, so
+  every point must lie on the model's surface. That refuses edges of another part, and edges in a
+  unit that is too large. Edges in a unit that is too small shrink toward the origin and may still
+  touch the surface there. The viewer catches that by also trying the larger units, and it refuses
+  the edges when they fit in one of those too (`… collapse to a point in mm …` or
+  `… the unit is ambiguous`). The same preconditions as for surface strain apply: the same STEP,
+  and the model is never moved.
+- The first call on a model builds a surface index, which takes a few tens of milliseconds for a
+  typical part. Later calls on the same model reuse it.
 - Each successful call **replaces** every shown edge, and `[]` clears them. A failed call keeps
   the edges that are on screen. If you can't show the requested set, call `ClearEdgeHighlights`.
 - The edges are depth-tested, so the part hides the edges behind it. They are pulled slightly

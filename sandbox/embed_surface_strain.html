@@ -97,29 +97,29 @@
                     statusDiv.textContent = 'Invalid edges JSON: ' + error.message;
                     return;
                 }
+                let start = performance.now ();
                 let result = viewer.ShowEdgeHighlights (edges);
-                statusDiv.textContent = result.ok ? result.edgeCount + ' edges shown' : 'Edges not shown: ' + result.reason;
+                statusDiv.textContent = result.ok ? result.edgeCount + ' edges shown, ' + Math.round (performance.now () - start) + ' ms' : 'Edges not shown: ' + result.reason;
             }
 
-            // Every edge of the model's bounding box, in four colors, to try the overlay without data.
+            // The outline of a few triangles of every mesh, in four colors, to try the overlay
+            // without data. Triangle sides lie on the surface like real edges.
             function DemoEdges ()
             {
-                let box = OV.GetBoundingBox (viewer.GetModel ());
-                let min = [box.min.x, box.min.y, box.min.z];
-                let max = [box.max.x, box.max.y, box.max.z];
-                let colors = ['#ff0000', '#ffa500', '#0080ff', '#00c000'];
+                let colors = ['#ff0000', '#ffa500', '#0080ff', '#ff00ff'];
                 let edges = [];
-                for (let axis = 0; axis < 3; axis++) {
-                    for (let corner = 0; corner < 4; corner++) {
-                        let start = min.slice ();
-                        let others = [0, 1, 2].filter ((index) => index !== axis);
-                        start[others[0]] = (corner & 1) ? max[others[0]] : min[others[0]];
-                        start[others[1]] = (corner & 2) ? max[others[1]] : min[others[1]];
-                        let end = start.slice ();
-                        end[axis] = max[axis];
-                        edges.push ({ polyline : [start, end], color : colors[corner], width : axis === 0 ? 6 : 4 });
-                    }
-                }
+                let meshIndex = 0;
+                viewer.GetModel ().EnumerateMeshInstances ((meshInstance) => {
+                    let triangleIndex = 0;
+                    meshInstance.EnumerateTriangleVertices ((v0, v1, v2) => {
+                        if (triangleIndex++ % 7 !== 0 || triangleIndex > 60) {
+                            return;
+                        }
+                        let polyline = [v0, v1, v2, v0].map ((v) => [v.x, v.y, v.z]);
+                        edges.push ({ polyline : polyline, color : colors[meshIndex % colors.length], width : meshIndex % 2 === 0 ? 4 : 6 });
+                    });
+                    meshIndex += 1;
+                });
                 edgesInput.value = JSON.stringify (edges);
                 ShowEdges ();
             }

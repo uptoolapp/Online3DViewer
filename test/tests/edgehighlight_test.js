@@ -50,9 +50,11 @@ describe ('Edge Highlight', function () {
         let model = CreateBoxModel (OV.Unit.Millimeter);
         let params = new OV.EdgeHighlightParams ();
         params.unit = OV.Unit.Meter;
-        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[0, 0, 0], [0.1, 0.02, 0.01]], color : '#0000ff' }], params);
-        assert.ok (prepared.result.ok);
+        // Read as mm these collapse onto the corner at the origin, which must not count as a fit.
+        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[0.05, 0.02, 0.01], [0.1, 0.02, 0.01]], color : '#0000ff' }], params);
+        assert.ok (prepared.result.ok, prepared.result.reason);
         let positions = prepared.prepared[0].positions;
+        assert.ok (Math.abs (positions[0] - 50.0) < 1e-4);
         assert.ok (Math.abs (positions[3] - 100.0) < 1e-4);
         assert.ok (Math.abs (positions[4] - 20.0) < 1e-4);
         assert.ok (Math.abs (positions[5] - 10.0) < 1e-4);
@@ -73,7 +75,45 @@ describe ('Edge Highlight', function () {
         let prepared = OV.PrepareEdgeHighlights (model, [BoxEdge ('#ff0000')], params);
         assert.ok (!prepared.result.ok);
         assert.strictEqual (prepared.prepared, null);
-        assert.ok (prepared.result.reason.indexOf ('edge 0: point 1 is outside the model') === 0);
+        assert.strictEqual (prepared.result.reason, 'edge 0: point 1 is not on the model, the edges fit the model only if they were in mm, not m');
+    });
+
+    it ('Refuses edges that collapse onto the origin in a wrong unit', function () {
+        // Metre coordinates passed as mm shrink onto the box corner at the origin.
+        let model = CreateBoxModel (OV.Unit.Millimeter);
+        let edges = [{ polyline : [[0, 0, 0], [0.05, 0, 0], [0.1, 0, 0]], color : '#ff0000' }];
+        let prepared = OV.PrepareEdgeHighlights (model, edges);
+        assert.ok (!prepared.result.ok);
+        assert.strictEqual (prepared.result.reason, 'the edges collapse to a point in mm, they fit the model only if they were in m');
+    });
+
+    it ('Refuses edges that are inside the box but not on the surface', function () {
+        let model = CreateBoxModel (OV.Unit.Millimeter);
+        let edges = [BoxEdge ('#ff0000'), { polyline : [[10, 10, 5], [90, 10, 5]], color : '#ff0000' }];
+        let prepared = OV.PrepareEdgeHighlights (model, edges);
+        assert.ok (!prepared.result.ok);
+        assert.strictEqual (prepared.result.reason, 'edge 1: point 0 is not on the model, the edges may belong to another part');
+    });
+
+    it ('Refuses edges that fit the model in two units', function () {
+        // A short edge along the x axis from the corner at the origin stays on the box edge when
+        // it is scaled up by 10.
+        let model = CreateBoxModel (OV.Unit.Millimeter);
+        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[0, 0, 0], [5, 0, 0]], color : '#ff0000' }]);
+        assert.ok (!prepared.result.ok);
+        assert.strictEqual (prepared.result.reason, 'the edges fit the model both in mm and in cm, the unit is ambiguous');
+    });
+
+    it ('Accepts a short edge away from the origin', function () {
+        let model = CreateBoxModel (OV.Unit.Millimeter);
+        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[60, 0, 10], [60.2, 0, 10]], color : '#ff0000' }]);
+        assert.ok (prepared.result.ok, prepared.result.reason);
+    });
+
+    it ('Accepts edges on a face, not only on the box edges', function () {
+        let model = CreateBoxModel (OV.Unit.Millimeter);
+        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[30, 5, 10], [60, 15, 10]], color : '#ff0000' }]);
+        assert.ok (prepared.result.ok, prepared.result.reason);
     });
 
     it ('Refuses invalid edges with the edge index', function () {
@@ -92,12 +132,11 @@ describe ('Edge Highlight', function () {
         Check ({ polyline : [[0, 0, 0], [1, 0]], color : '#ff0000' }, 'point 1 must be [x, y, z]');
         Check ({ polyline : [[0, 0, 0], [1, 0, 0]], color : 'red' }, 'color must be a hex color');
         Check ({ polyline : [[0, 0, 0], [1, 0, 0]], color : '#ff0000', width : 0 }, 'width must be a positive number');
-        Check ({ polyline : [[0, 0, 0], [200, 0, 0]], color : '#ff0000' }, 'point 1 is outside the model');
     });
 
     it ('Allows points slightly outside the bounding box', function () {
         let model = CreateBoxModel (OV.Unit.Millimeter);
-        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[-0.5, 0, 0], [100.5, 0, 0]], color : '#ff0000' }]);
+        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[-0.15, 0, 0], [100.15, 0, 0]], color : '#ff0000' }]);
         assert.ok (prepared.result.ok);
     });
 
@@ -107,6 +146,17 @@ describe ('Edge Highlight', function () {
         let prepared = OV.PrepareEdgeHighlights (CreateBoxModel (OV.Unit.Millimeter), [], params);
         assert.ok (!prepared.result.ok);
         assert.ok (prepared.result.reason.indexOf ('width') === 0);
+
+        for (let unit of [undefined, 'mm', OV.Unit.Unknown, 42]) {
+            params = new OV.EdgeHighlightParams ();
+            params.unit = unit;
+            prepared = OV.PrepareEdgeHighlights (CreateBoxModel (OV.Unit.Millimeter), [BoxEdge ('#ff0000')], params);
+            assert.ok (!prepared.result.ok);
+            assert.ok (prepared.result.reason.indexOf ('unit must be') === 0);
+        }
+        prepared = OV.PrepareEdgeHighlights (CreateBoxModel (OV.Unit.Millimeter), [BoxEdge ('#ff0000')], { width : 3, surfaceTolerance : 0.005 });
+        assert.ok (!prepared.result.ok);
+        assert.ok (prepared.result.reason.indexOf ('unit must be') === 0);
 
         prepared = OV.PrepareEdgeHighlights (CreateBoxModel (OV.Unit.Millimeter), 'nope');
         assert.ok (!prepared.result.ok);

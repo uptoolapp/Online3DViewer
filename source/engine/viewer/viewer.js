@@ -317,7 +317,6 @@ export class Viewer
             this.renderer.setPixelRatio (window.devicePixelRatio);
         }
         this.renderer.setSize (width, height);
-        this.UpdateEdgeHighlightResolution ();
         this.cameraValidator.ForceUpdate ();
         this.Render ();
     }
@@ -511,7 +510,6 @@ export class Viewer
         if (prepared.length > 0) {
             this.edgeHighlight = new ViewerEdgeHighlight (prepared);
             this.edgeHighlightModel.SetRootObject (this.edgeHighlight.CreateThreeObject ());
-            this.UpdateEdgeHighlightResolution ();
         }
         this.Render ();
     }
@@ -529,15 +527,6 @@ export class Viewer
         this.edgeHighlightModel.Clear ();
         this.edgeHighlight = null;
         this.Render ();
-    }
-
-    UpdateEdgeHighlightResolution ()
-    {
-        if (this.edgeHighlight === null) {
-            return;
-        }
-        let canvasSize = this.GetCanvasSize ();
-        this.edgeHighlight.SetResolution (canvasSize.width, canvasSize.height);
     }
 
     ClearExtra ()

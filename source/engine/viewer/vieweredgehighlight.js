@@ -6,6 +6,7 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 /**
  * Three.js overlay that draws prepared edge highlights as thick screen-space lines. WebGL lines
  * are always one pixel wide, so the polylines are drawn as quads with a width in CSS pixels.
+ * LineSegments2 sets the material's resolution from the viewport before every render.
  */
 export class ViewerEdgeHighlight
 {
@@ -13,7 +14,6 @@ export class ViewerEdgeHighlight
     {
         this.prepared = prepared;
         this.rootObject = null;
-        this.materials = [];
     }
 
     CreateThreeObject ()
@@ -28,7 +28,6 @@ export class ViewerEdgeHighlight
         }
 
         this.rootObject = new THREE.Object3D ();
-        this.materials = [];
         for (let [width, edges] of groups) {
             let segmentCount = 0;
             for (let edge of edges) {
@@ -61,19 +60,8 @@ export class ViewerEdgeHighlight
                 polygonOffsetFactor : -1,
                 polygonOffsetUnits : -4
             });
-            this.materials.push (material);
             this.rootObject.add (new LineSegments2 (geometry, material));
         }
         return this.rootObject;
-    }
-
-    /**
-     * Line widths are in pixels of this resolution, call it with the canvas size in CSS pixels.
-     */
-    SetResolution (width, height)
-    {
-        for (let material of this.materials) {
-            material.resolution.set (width, height);
-        }
     }
 }
