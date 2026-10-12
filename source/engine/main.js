@@ -2,6 +2,7 @@ import { IsDefined, ValueOrDefault, CopyObjectAttributes, IsObjectEmpty, FormatS
 import { EventNotifier } from './core/eventnotifier.js';
 import { SetLocalizedStrings, SetLanguageCode, Loc, FLoc } from './core/localization.js';
 import { TaskRunner, RunTaskAsync, RunTasks, RunTasksBatch, WaitWhile } from './core/taskrunner.js';
+import { EdgeHighlight, EdgeHighlightParams, EdgeHighlightResult, PreparedEdgeHighlight, PrepareEdgeHighlights } from './edgehighlight/edgehighlight.js';
 import { Exporter } from './export/exporter.js';
 import { Exporter3dm } from './export/exporter3dm.js';
 import { ExportedFile, ExporterBase } from './export/exporterbase.js';
@@ -66,7 +67,7 @@ import { Triangle } from './model/triangle.js';
 import { convertUnit, Unit } from './model/unit.js';
 import { ParameterListBuilder, ParameterListParser, CreateUrlBuilder, CreateUrlParser, CreateModelUrlParameters, ParameterConverter } from './parameters/parameterlist.js';
 import { SurfaceStrainParams, SurfaceStrainResult, PrepareSurfaceStrain } from './surfacestrain/surfacestrain.js';
-import { SurfaceStrainColorScale, SurfaceStrainThreshold, SurfaceStrainThresholdScale, CreateSurfaceStrainColorScale, SurfaceStrainColorRange, SurfaceStrainAbsoluteLog10Low, SurfaceStrainAbsoluteLog10High, SurfaceStrainMissingColor, SurfaceStrainMaxThresholdCount, SurfaceStrainDefaultBelowThresholdColor } from './surfacestrain/surfacestraincolor.js';
+import { SurfaceStrainColorScale, SurfaceStrainThreshold, SurfaceStrainThresholdScale, ParseHexColor, CreateSurfaceStrainColorScale, SurfaceStrainColorRange, SurfaceStrainAbsoluteLog10Low, SurfaceStrainAbsoluteLog10High, SurfaceStrainMissingColor, SurfaceStrainMaxThresholdCount, SurfaceStrainDefaultBelowThresholdColor } from './surfacestrain/surfacestraincolor.js';
 import { SurfaceStrainData, DecodeSurfaceStrain } from './surfacestrain/surfacestraindecoder.js';
 import { SurfaceStrainFrameResult, CheckSurfaceStrainFrameAtScale, MatchSurfaceStrainFrame, IsSurfaceStrainSourceFile } from './surfacestrain/surfacestrainframe.js';
 import { RefinementBudget, RefinedTriangles, RefineTriangles } from './surfacestrain/surfacestrainrefine.js';
@@ -81,6 +82,7 @@ import { EmbeddedViewer, Init3DViewerFromUrlList, Init3DViewerFromFileList, Init
 import { MouseInteraction, TouchInteraction, ClickDetector, Navigation, NavigationType } from './viewer/navigation.js';
 import { EnvironmentSettings, ShadingModel } from './viewer/shadingmodel.js';
 import { CameraValidator, UpVector, Viewer, GetDefaultCamera, TraverseThreeObject, GetShadingTypeOfObject } from './viewer/viewer.js';
+import { ViewerEdgeHighlight } from './viewer/vieweredgehighlight.js';
 import { ViewerModel, EdgeSettings, ViewerMainModel, SetThreeMeshPolygonOffset, IntersectionMode } from './viewer/viewermodel.js';
 import { ViewerSurfaceStrain } from './viewer/viewersurfacestrain.js';
 
@@ -101,6 +103,11 @@ export {
     RunTasks,
     RunTasksBatch,
     WaitWhile,
+    EdgeHighlight,
+    EdgeHighlightParams,
+    EdgeHighlightResult,
+    PreparedEdgeHighlight,
+    PrepareEdgeHighlights,
     Exporter,
     Exporter3dm,
     ExportedFile,
@@ -307,6 +314,7 @@ export {
     SurfaceStrainColorScale,
     SurfaceStrainThreshold,
     SurfaceStrainThresholdScale,
+    ParseHexColor,
     CreateSurfaceStrainColorScale,
     SurfaceStrainColorRange,
     SurfaceStrainAbsoluteLog10Low,
@@ -397,6 +405,7 @@ export {
     GetDefaultCamera,
     TraverseThreeObject,
     GetShadingTypeOfObject,
+    ViewerEdgeHighlight,
     ViewerModel,
     EdgeSettings,
     ViewerMainModel,

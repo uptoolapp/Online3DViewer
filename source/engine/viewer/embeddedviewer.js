@@ -5,6 +5,7 @@ import { ImportErrorCode, ImportSettings } from '../import/importer.js';
 import { TransformFileHostUrls } from '../io/fileutils.js';
 import { ParameterConverter } from '../parameters/parameterlist.js';
 import { ThreeModelLoader } from '../threejs/threemodelloader.js';
+import { EdgeHighlightResult, PrepareEdgeHighlights } from '../edgehighlight/edgehighlight.js';
 import { PrepareSurfaceStrain, SurfaceStrainParams, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
 import { CreateSurfaceStrainColorScale } from '../surfacestrain/surfacestraincolor.js';
 import { Viewer } from './viewer.js';
@@ -289,6 +290,45 @@ export class EmbeddedViewer
         this.viewer.ClearSurfaceStrain ();
         this.surfaceStrainHeader = null;
         this.surfaceStrainRequest += 1;
+    }
+
+    /**
+     * Draws coloured polylines on the model, for example the risky edges of a frequency analysis.
+     * The coordinates are converted from params.unit (mm by default) to the model's unit and must
+     * lie on the model. Each call replaces the shown edges, but only on success, a failed call
+     * keeps them. The edges are independent of the surface strain and are cleared when a new
+     * model starts loading.
+     * @param {EdgeHighlight[]} edges Edges with polyline, color and an optional width in pixels.
+     * An empty list clears the edges.
+     * @param {EdgeHighlightParams} [params] Parameters.
+     * @returns {EdgeHighlightResult} On failure ok is false and reason says why.
+     */
+    ShowEdgeHighlights (edges, params)
+    {
+        if (this.model === null) {
+            let result = new EdgeHighlightResult ();
+            result.reason = 'no model is loaded';
+            return result;
+        }
+        try {
+            let prepared = PrepareEdgeHighlights (this.model, edges, params);
+            if (prepared.result.ok) {
+                this.viewer.SetEdgeHighlights (prepared.prepared);
+            }
+            return prepared.result;
+        } catch (error) {
+            let result = new EdgeHighlightResult ();
+            result.reason = error.message;
+            return result;
+        }
+    }
+
+    /**
+     * Removes the edges shown by ShowEdgeHighlights.
+     */
+    ClearEdgeHighlights ()
+    {
+        this.viewer.ClearEdgeHighlights ();
     }
 
     /**

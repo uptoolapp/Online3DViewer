@@ -7,6 +7,7 @@ import { GetDomElementInnerDimensions } from './domutils.js';
 import { Navigation } from './navigation.js';
 import { ShadingModel } from './shadingmodel.js';
 import { ViewerModel, ViewerMainModel } from './viewermodel.js';
+import { ViewerEdgeHighlight } from './vieweredgehighlight.js';
 import { ViewerSurfaceStrain } from './viewersurfacestrain.js';
 
 import * as THREE from 'three';
@@ -169,6 +170,8 @@ export class Viewer
         this.extraModel = null;
         this.surfaceStrainModel = null;
         this.surfaceStrain = null;
+        this.edgeHighlightModel = null;
+        this.edgeHighlight = null;
         this.camera = null;
         this.projectionMode = null;
         this.cameraValidator = null;
@@ -203,6 +206,7 @@ export class Viewer
         this.mainModel = new ViewerMainModel (this.scene);
         this.extraModel = new ViewerModel (this.scene);
         this.surfaceStrainModel = new ViewerModel (this.scene);
+        this.edgeHighlightModel = new ViewerModel (this.scene);
 
         this.InitNavigation ();
         this.InitShading ();
@@ -313,6 +317,7 @@ export class Viewer
             this.renderer.setPixelRatio (window.devicePixelRatio);
         }
         this.renderer.setSize (width, height);
+        this.UpdateEdgeHighlightResolution ();
         this.cameraValidator.ForceUpdate ();
         this.Render ();
     }
@@ -446,6 +451,8 @@ export class Viewer
         this.extraModel.Clear ();
         this.surfaceStrainModel.Clear ();
         this.surfaceStrain = null;
+        this.edgeHighlightModel.Clear ();
+        this.edgeHighlight = null;
         this.Render ();
     }
 
@@ -491,6 +498,46 @@ export class Viewer
         this.surfaceStrain = null;
         this.UpdateMeshesVisibility ();
         this.Render ();
+    }
+
+    /**
+     * Shows prepared edge highlights on top of the model, replacing the shown ones.
+     * @param {PreparedEdgeHighlight[]} prepared Result of PrepareEdgeHighlights.
+     */
+    SetEdgeHighlights (prepared)
+    {
+        this.edgeHighlightModel.Clear ();
+        this.edgeHighlight = null;
+        if (prepared.length > 0) {
+            this.edgeHighlight = new ViewerEdgeHighlight (prepared);
+            this.edgeHighlightModel.SetRootObject (this.edgeHighlight.CreateThreeObject ());
+            this.UpdateEdgeHighlightResolution ();
+        }
+        this.Render ();
+    }
+
+    HasEdgeHighlights ()
+    {
+        return this.edgeHighlight !== null;
+    }
+
+    ClearEdgeHighlights ()
+    {
+        if (this.edgeHighlight === null) {
+            return;
+        }
+        this.edgeHighlightModel.Clear ();
+        this.edgeHighlight = null;
+        this.Render ();
+    }
+
+    UpdateEdgeHighlightResolution ()
+    {
+        if (this.edgeHighlight === null) {
+            return;
+        }
+        let canvasSize = this.GetCanvasSize ();
+        this.edgeHighlight.SetResolution (canvasSize.width, canvasSize.height);
     }
 
     ClearExtra ()

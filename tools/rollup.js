@@ -14,7 +14,10 @@ export default [
             'three/examples/jsm/loaders/ColladaLoader.js',
             'three/examples/jsm/loaders/VRMLLoader.js',
             'three/examples/jsm/loaders/3MFLoader.js',
-            'three/examples/jsm/loaders/AMFLoader.js'
+            'three/examples/jsm/loaders/AMFLoader.js',
+            'three/examples/jsm/lines/LineMaterial.js',
+            'three/examples/jsm/lines/LineSegments2.js',
+            'three/examples/jsm/lines/LineSegmentsGeometry.js'
         ]
     }
 ];

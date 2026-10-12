@@ -29,6 +29,7 @@ import exportimport_test from './tests/exportimport_test.js';
 import property_test from './tests/property_test.js';
 import parameterlist_test from './tests/parameterlist_test.js';
 import surfacestrain_test from './tests/surfacestrain_test.js';
+import edgehighlight_test from './tests/edgehighlight_test.js';
 
 process.chdir (path.resolve ());
 SetGlobals ();
@@ -60,3 +61,4 @@ exportimport_test ();
 property_test ();
 parameterlist_test ();
 surfacestrain_test ();
+edgehighlight_test ();

@@ -20,7 +20,7 @@ Adding one (for example `#model=…$strain=<url>`) would be a separate change.
 ## Packaging
 
 - Rebuild the package tarball the same way as today, then update `online-3d-viewer.tgz` and its
-  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.11`) so the two
+  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.12`) so the two
   builds can be told apart.
 - `occt-import-js` stays at `0.0.22`. The `vite-plugin-static-copy` setup, the `/occt-import-js/`
   location and `OV.SetExternalLibLocation ("occt-import-js", "/occt-import-js/")` don't change.
@@ -239,6 +239,61 @@ const viewer = new OV.EmbeddedViewer(container, {
   },
 });
 viewer.LoadModelFromUrlList([fileUrl]);
+```
+
+## Edge highlights
+
+The viewer can also draw the risky edges from the analysis (for example sharp internal corners) as
+coloured lines on the part. This API is generic: it takes polylines and colours, and nothing in it
+is specific to strain. The other edge fields (`edge_index`, `face_indices`, `angle_deg`,
+`length_mm`) stay in the host, for its own list or tooltip.
+
+### `EmbeddedViewer.ShowEdgeHighlights (edges, params?) → EdgeHighlightResult`
+
+- `edges`: a list of `OV.EdgeHighlight`, or plain objects with the same fields:
+
+  | Field      | Type         | Meaning                                                                                   |
+  | ---------- | ------------ | ----------------------------------------------------------------------------------------- |
+  | `polyline` | `number[][]` | `[[x, y, z], …]` with at least 2 points, in `params.unit`. Pass the edge's `polyline_xyz` unchanged. |
+  | `color`    | `string`     | Hex colour, `"#rrggbb"` or `"rrggbb"`.                                                     |
+  | `width`    | `number?`    | Line width in CSS pixels. Overrides `params.width` for this edge.                          |
+
+- `params`: optional `OV.EdgeHighlightParams`.
+
+  | Field            | Default              | Meaning                                                                          |
+  | ---------------- | -------------------- | -------------------------------------------------------------------------------- |
+  | `unit`           | `OV.Unit.Millimeter` | Unit of the coordinates. They are converted to the model's unit. If the model's unit is unknown, they are used as they are. |
+  | `width`          | `4`                  | Default line width in CSS pixels. Lines keep this width at any zoom.            |
+  | `frameTolerance` | `0.01`               | Every point must lie inside the model's bounding box, grown by this fraction of its diagonal. |
+
+- `EdgeHighlightResult` is `{ ok, reason, edgeCount }`.
+- The call is **synchronous** and **never throws**. Call it after `onModelLoaded`. Before that it
+  returns `ok: false` with `no model is loaded`.
+- It is **all or nothing**. One invalid edge fails the whole call, and `reason` names it, for
+  example `edge 3: polyline needs at least 2 points`. A colour that isn't hex, a coordinate that
+  isn't finite, a width that isn't positive, and a point outside the model (the wrong part, or the
+  wrong unit) are refused the same way. The texts aren't stable, so don't parse them.
+- Each successful call **replaces** every shown edge, and `[]` clears them. A failed call keeps
+  the edges that are on screen. If you can't show the requested set, call `ClearEdgeHighlights`.
+- The edges are depth-tested, so the part hides the edges behind it. They are pulled slightly
+  toward the camera so they stay fully visible on the surface they lie on.
+- **Independent of surface strain.** Both can be shown at the same time, and the edges are drawn
+  over the strain overlay. Clearing one leaves the other.
+- Loading a new model, `Destroy ()` and `GetViewer ().Clear ()` remove the edges. Per-mesh
+  `SetMeshesVisibility` doesn't hide them. They are display only: they can't be picked, and they
+  don't affect the camera fit.
+
+### `EmbeddedViewer.ClearEdgeHighlights ()`
+
+Removes the edges. Safe to call at any time.
+
+```ts
+const result = viewer.ShowEdgeHighlights(
+  riskyEdges.map((edge) => ({ polyline: edge.polyline_xyz, color: edge.angle_deg <= 90 ? "#ff0000" : "#ffa500" }))
+);
+if (!result.ok) {
+  console.warn("risky edges not shown:", result.reason);
+}
 ```
 
 ## Compatibility

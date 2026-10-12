@@ -11,11 +11,13 @@
 
     <script type='text/javascript'>
         // Files can be picked, or given in the query string:
-        // embed_surface_strain.html?model=<step url>&strain=<bin url>&thresholds=<json list>
+        // embed_surface_strain.html?model=<step url>&strain=<bin url>&thresholds=<json list>&edges=<json url>
+        // The edges JSON is a list of { polyline : [[x, y, z], ...] (mm), color : '#rrggbb', width? }.
         window.addEventListener ('load', () => {
             let parentDiv = document.getElementById ('viewer');
             let statusDiv = document.getElementById ('status');
             let thresholdsInput = document.getElementById ('thresholds');
+            let edgesInput = document.getElementById ('edges');
             let strainBuffer = null;
             let modelLoaded = false;
 
@@ -25,6 +27,9 @@
                 onModelLoaded : () => {
                     modelLoaded = true;
                     ShowStrain ();
+                    if (edgesInput.value.trim ().length > 0) {
+                        ShowEdges ();
+                    }
                 }
             });
 
@@ -83,6 +88,49 @@
                 statusDiv.textContent = result.ok ? 'Colors applied' : 'Colors not applied: ' + result.reason;
             }
 
+            function ShowEdges ()
+            {
+                let edges = null;
+                try {
+                    edges = JSON.parse (edgesInput.value);
+                } catch (error) {
+                    statusDiv.textContent = 'Invalid edges JSON: ' + error.message;
+                    return;
+                }
+                let result = viewer.ShowEdgeHighlights (edges);
+                statusDiv.textContent = result.ok ? result.edgeCount + ' edges shown' : 'Edges not shown: ' + result.reason;
+            }
+
+            // Every edge of the model's bounding box, in four colors, to try the overlay without data.
+            function DemoEdges ()
+            {
+                let box = OV.GetBoundingBox (viewer.GetModel ());
+                let min = [box.min.x, box.min.y, box.min.z];
+                let max = [box.max.x, box.max.y, box.max.z];
+                let colors = ['#ff0000', '#ffa500', '#0080ff', '#00c000'];
+                let edges = [];
+                for (let axis = 0; axis < 3; axis++) {
+                    for (let corner = 0; corner < 4; corner++) {
+                        let start = min.slice ();
+                        let others = [0, 1, 2].filter ((index) => index !== axis);
+                        start[others[0]] = (corner & 1) ? max[others[0]] : min[others[0]];
+                        start[others[1]] = (corner & 2) ? max[others[1]] : min[others[1]];
+                        let end = start.slice ();
+                        end[axis] = max[axis];
+                        edges.push ({ polyline : [start, end], color : colors[corner], width : axis === 0 ? 6 : 4 });
+                    }
+                }
+                edgesInput.value = JSON.stringify (edges);
+                ShowEdges ();
+            }
+
+            document.getElementById ('showedges').addEventListener ('click', ShowEdges);
+            document.getElementById ('demoedges').addEventListener ('click', DemoEdges);
+            document.getElementById ('clearedges').addEventListener ('click', () => {
+                viewer.ClearEdgeHighlights ();
+                statusDiv.textContent = 'Edges cleared';
+            });
+
             document.getElementById ('model').addEventListener ('change', (ev) => {
                 modelLoaded = false;
                 viewer.LoadModelFromFileList (Array.from (ev.target.files));
@@ -104,6 +152,17 @@
             if (query.has ('thresholds')) {
                 thresholdsInput.value = query.get ('thresholds');
             }
+            if (query.has ('edges')) {
+                fetch (query.get ('edges')).then ((response) => response.text ()).then ((text) => {
+                    edgesInput.value = text;
+                    if (modelLoaded) {
+                        ShowEdges ();
+                    }
+                });
+            }
+            if (query.has ('model') && !query.has ('strain')) {
+                viewer.LoadModelFromUrlList ([query.get ('model')]);
+            }
             if (query.has ('model') && query.has ('strain')) {
                 fetch (query.get ('strain')).then ((response) => response.arrayBuffer ()).then ((buffer) => {
                     strainBuffer = buffer;
@@ -117,6 +176,7 @@
         body { font-family: sans-serif; font-size: 14px; }
         #viewer { width: 960px; height: 600px; border: 1px solid #eeeeee; }
         #thresholds { width: 560px; font-family: monospace; }
+        #edges { width: 560px; font-family: monospace; }
         .row { margin: 6px 0px; }
     </style>
 </head>
@@ -132,6 +192,13 @@
         Thresholds
         <input type="text" id="thresholds" placeholder='[{"color":"#ff0000","strain":100},{"color":"#ffa500","strain":50},{"color":"#ffff00","strain":25}]'>
         <button id="apply">Apply colors</button>
+    </div>
+    <div class="row">
+        Edges
+        <input type="text" id="edges" placeholder='[{"polyline":[[0,0,0],[10,0,0]],"color":"#ff0000"}]'>
+        <button id="showedges">Show edges</button>
+        <button id="demoedges">Demo edges</button>
+        <button id="clearedges">Clear edges</button>
     </div>
     <div class="row" id="status"></div>
     <div id="viewer"></div>
