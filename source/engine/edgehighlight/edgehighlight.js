@@ -252,18 +252,20 @@ function CheckOnSurface (model, edges, params)
     let collapsed = IsCollapsed (scale);
     let unitName = SurfaceStrainUnitToString (params.unit);
 
-    // The other units that fit with a real size, the largest first, so a reason names the unit
-    // with the most spread out fit.
-    let otherUnits = SurfaceStrainUnitCandidates.filter ((unit) => unit !== params.unit);
-    otherUnits.sort ((a, b) => GetScale (b, modelUnit) - GetScale (a, modelUnit));
-    let FindFittingUnit = (isBetterFit) => otherUnits.find ((unit) => {
-        let otherScale = GetScale (unit, modelUnit);
-        if (IsCollapsed (otherScale)) {
-            return false;
-        }
-        let otherFit = MeasureSurfaceFit (edges, otherScale, index, box, tolerance);
-        return otherFit.Fits () && isBetterFit (otherFit);
-    });
+    // The other units in which the edges keep a real size, the largest first, so a reason names
+    // the unit with the most spread out fit.
+    let candidates = SurfaceStrainUnitCandidates
+        .filter ((unit) => unit !== params.unit)
+        .map ((unit) => ({ unit : unit, scale : GetScale (unit, modelUnit) }))
+        .filter ((candidate) => !IsCollapsed (candidate.scale))
+        .sort ((a, b) => b.scale - a.scale);
+    let FindFittingUnit = (isBetterFit) => {
+        let fitting = candidates.find ((candidate) => {
+            let otherFit = MeasureSurfaceFit (edges, candidate.scale, index, box, tolerance);
+            return otherFit.Fits () && isBetterFit (otherFit);
+        });
+        return fitting !== undefined ? fitting.unit : undefined;
+    };
 
     if (!fit.Fits ()) {
         let fittingUnit = FindFittingUnit (() => true);
