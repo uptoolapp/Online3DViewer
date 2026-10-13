@@ -71,14 +71,23 @@ export class PreparedEdgeHighlight
     }
 }
 
-// The surface index of a model is built once and reused by later calls with other colors.
-const SurfaceIndexCache = new WeakMap ();
+// The bounding box and surface index of a model are built once and reused by later calls, for
+// example to recolor or filter the edges.
+const ModelSurfaceCache = new WeakMap ();
 
-function GetSurfaceIndex (model, box)
+/**
+ * @returns {{box: Box3D, index: SurfaceStrainIndex}|null} Null for an empty model.
+ */
+function GetModelSurface (model)
 {
-    let index = SurfaceIndexCache.get (model);
-    if (index !== undefined) {
-        return index;
+    let surface = ModelSurfaceCache.get (model);
+    if (surface !== undefined) {
+        return surface;
+    }
+
+    let box = GetBoundingBox (model);
+    if (box === null) {
+        return null;
     }
 
     let positions = new Float32Array (model.TriangleCount () * 9);
@@ -100,7 +109,7 @@ function GetSurfaceIndex (model, box)
     // The closest point grid of the surface strain mapping, over the model's own triangles.
     let bboxMin = [box.min.x, box.min.y, box.min.z];
     let bboxSize = [box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z];
-    index = new SurfaceStrainIndex ({
+    let index = new SurfaceStrainIndex ({
         positions : positions,
         triangles : triangles,
         log10Strain : new Float32Array (triangles.length),
@@ -108,8 +117,9 @@ function GetSurfaceIndex (model, box)
         bboxSize : bboxSize,
         meshSize : Math.max (bboxSize[0], bboxSize[1], bboxSize[2]) / 128.0
     });
-    SurfaceIndexCache.set (model, index);
-    return index;
+    surface = { box : box, index : index };
+    ModelSurfaceCache.set (model, surface);
+    return surface;
 }
 
 function IsValidWidth (width)
@@ -225,13 +235,14 @@ function GetScale (fromUnit, toUnit)
 
 function CheckOnSurface (model, edges, params)
 {
-    let box = GetBoundingBox (model);
-    if (box === null) {
+    let surface = GetModelSurface (model);
+    if (surface === null) {
         return 'the model is empty';
     }
+    let box = surface.box;
+    let index = surface.index;
     let largestSize = Math.max (box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
     let tolerance = largestSize * params.surfaceTolerance;
-    let index = GetSurfaceIndex (model, box);
     let modelUnit = model.GetUnit ();
 
     // Without a model unit there is nothing to convert to, the coordinates are used as they are.
