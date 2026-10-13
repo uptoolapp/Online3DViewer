@@ -95,13 +95,31 @@ describe ('Edge Highlight', function () {
         assert.strictEqual (prepared.result.reason, 'edge 1: point 0 is not on the model, the edges may belong to another part');
     });
 
-    it ('Refuses edges that fit the model in two units', function () {
-        // A short edge along the x axis from the corner at the origin stays on the box edge when
-        // it is scaled up by 10.
+    it ('Accepts edges through the origin that fit in a larger unit too', function () {
+        // An edge along the x axis from the corner at the origin stays on the box edge when it is
+        // scaled up by 10, and an edge on the bottom face stays on it too.
         let model = CreateBoxModel (OV.Unit.Millimeter);
-        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[0, 0, 0], [5, 0, 0]], color : '#ff0000' }]);
+        let edges = [
+            { polyline : [[0, 0, 0], [5, 0, 0]], color : '#ff0000' },
+            { polyline : [[0, 0, 0], [3, 1, 0]], color : '#ff0000' }
+        ];
+        let prepared = OV.PrepareEdgeHighlights (model, edges);
+        assert.ok (prepared.result.ok, prepared.result.reason);
+        assert.strictEqual (prepared.result.edgeCount, 2);
+    });
+
+    it ('Refuses edges that fit loosely, but much more closely in another unit', function () {
+        // An edge on the x = 100 face in cm, passed as mm, lands near the y = 0 face, 0.15 mm off.
+        let model = CreateBoxModel (OV.Unit.Millimeter);
+        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[10, 0.15, 0.15], [10, 0.15, 0.8]], color : '#ff0000' }]);
         assert.ok (!prepared.result.ok);
-        assert.strictEqual (prepared.result.reason, 'the edges fit the model both in mm and in cm, the unit is ambiguous');
+        assert.strictEqual (prepared.result.reason, 'the edges lie on the model only loosely in mm, they fit it much more closely in cm');
+    });
+
+    it ('Accepts a tiny edge set that no other unit explains', function () {
+        let model = CreateBoxModel (OV.Unit.Millimeter);
+        let prepared = OV.PrepareEdgeHighlights (model, [{ polyline : [[60, 20, 10], [60.1, 20, 10]], color : '#ff0000' }]);
+        assert.ok (prepared.result.ok, prepared.result.reason);
     });
 
     it ('Accepts a short edge away from the origin', function () {

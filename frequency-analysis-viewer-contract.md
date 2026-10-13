@@ -275,11 +275,13 @@ is specific to strain. The other edge fields (`edge_index`, `face_indices`, `ang
   The texts aren't stable, so don't parse them.
 - **Same part, same unit.** The polylines are tessellation vertices of the part's own edges, so
   every point must lie on the model's surface. That refuses edges of another part, and edges in a
-  unit that is too large. Edges in a unit that is too small shrink toward the origin and may still
-  touch the surface there. The viewer catches that by also trying the larger units, and it refuses
-  the edges when they fit in one of those too (`… collapse to a point in mm …` or
-  `… the unit is ambiguous`). The same preconditions as for surface strain apply: the same STEP,
-  and the model is never moved.
+  unit that is too large. Edges in a unit that is too small shrink toward the origin, and they can
+  land on the surface there, but only loosely. The viewer refuses them in two cases: when they
+  collapse to a point in the declared unit but fit in another unit (`… collapse to a point in mm …`),
+  and when another unit fits them at least 4 times more closely (`… only loosely in mm …`). Edges
+  that fit closely in the declared unit are accepted, even if they would fit in another unit too,
+  because an edge on a line or a face through the origin stays on it when it's scaled. The same
+  preconditions as for surface strain apply: the same STEP, and the model is never moved.
 - The first call on a model builds a surface index, which takes a few tens of milliseconds for a
   typical part. Later calls on the same model reuse it.
 - Each successful call **replaces** every shown edge, and `[]` clears them. A failed call keeps

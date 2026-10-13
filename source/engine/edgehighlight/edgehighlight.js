@@ -9,9 +9,11 @@ import { SurfaceStrainUnitCandidates, SurfaceStrainUnitToString } from '../surfa
 // to the model unit. They are tessellation vertices of the part's own edges, so every point must
 // lie on the model's surface. That catches edges of another part, and edges in a unit that is too
 // large, because they grow off the part. Edges in a unit that is too small shrink toward the origin
-// and can still touch the surface near it, so the larger units are tried too: if the edges also
-// fit in one of them, they are refused. A fit counts only if the edges keep a real size, a set
-// collapsed to a point says nothing about the unit.
+// and can land on the surface there, loosely. A fit counts only if the edges keep a real size, a
+// set collapsed to a point says nothing about the unit. If the edges fit in the declared unit they
+// are accepted, even if they fit in another unit too, because an edge on a line or face through the
+// origin stays on it when scaled. They are refused only if another unit fits much more closely,
+// which is how a wrongly shrunk set that lands loosely on the surface shows up.
 
 export class EdgeHighlight
 {
@@ -150,13 +152,34 @@ function ParseEdge (edge, params)
     return new PreparedEdgeHighlight (positions, color, width);
 }
 
+// Another unit must fit this many times more closely than the declared one to refuse it.
+const CloserFitRatio = 4.0;
+
+class SurfaceFit
+{
+    constructor (offSurface, maxDistance)
+    {
+        // The first point farther than the tolerance, or null if every point is on the surface.
+        this.offSurface = offSurface;
+        // Largest distance from the surface, valid only if every point is on it.
+        this.maxDistance = maxDistance;
+    }
+
+    Fits ()
+    {
+        return this.offSurface === null;
+    }
+}
+
 /**
- * Returns the first point that is farther than tolerance from the model's surface when the
- * coordinates are multiplied by scale, or null if every point lies on the surface.
+ * Measures how closely the points lie on the model's surface when the coordinates are multiplied
+ * by scale.
+ * @returns {SurfaceFit}
  */
-function FindPointOffSurface (edges, scale, index, box, tolerance)
+function MeasureSurfaceFit (edges, scale, index, box, tolerance)
 {
     let sample = new SurfaceStrainSample ();
+    let maxDistance = 0.0;
     for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
         let positions = edges[edgeIndex].positions;
         for (let i = 0; i < positions.length / 3; i++) {
@@ -169,11 +192,17 @@ function FindPointOffSurface (edges, scale, index, box, tolerance)
                 z >= box.min.z - tolerance && z <= box.max.z + tolerance
             );
             if (!insideBox || !index.Sample (x, y, z, 0.0, 0.0, 0.0, tolerance, sample)) {
-                return { edgeIndex : edgeIndex, pointIndex : i };
+                return new SurfaceFit ({ edgeIndex : edgeIndex, pointIndex : i }, Infinity);
             }
+            maxDistance = Math.max (maxDistance, sample.distance);
         }
     }
-    return null;
+    return new SurfaceFit (null, maxDistance);
+}
+
+function OffSurfaceReason (offSurface)
+{
+    return 'edge ' + offSurface.edgeIndex.toString () + ': point ' + offSurface.pointIndex.toString () + ' is not on the model';
 }
 
 function GetExtent (edges)
@@ -207,9 +236,9 @@ function CheckOnSurface (model, edges, params)
 
     // Without a model unit there is nothing to convert to, the coordinates are used as they are.
     if (!SurfaceStrainUnitCandidates.includes (modelUnit)) {
-        let offSurface = FindPointOffSurface (edges, 1.0, index, box, tolerance);
-        if (offSurface !== null) {
-            return 'edge ' + offSurface.edgeIndex.toString () + ': point ' + offSurface.pointIndex.toString () + ' is not on the model, the edges may belong to another part';
+        let fit = MeasureSurfaceFit (edges, 1.0, index, box, tolerance);
+        if (!fit.Fits ()) {
+            return OffSurfaceReason (fit.offSurface) + ', the edges may belong to another part';
         }
         return null;
     }
@@ -218,30 +247,46 @@ function CheckOnSurface (model, edges, params)
     let IsCollapsed = (scale) => extent * scale <= 2.0 * tolerance;
 
     let scale = GetScale (params.unit, modelUnit);
-    let offSurface = FindPointOffSurface (edges, scale, index, box, tolerance);
-    // Largest unit first, so the reason names the unit with the most spread out fit.
+    let fit = MeasureSurfaceFit (edges, scale, index, box, tolerance);
+    let collapsed = IsCollapsed (scale);
+    let unitName = SurfaceStrainUnitToString (params.unit);
+
+    // The other units that fit with a real size, the largest first, so a reason names the unit
+    // with the most spread out fit.
     let otherUnits = SurfaceStrainUnitCandidates.filter ((unit) => unit !== params.unit);
     otherUnits.sort ((a, b) => GetScale (b, modelUnit) - GetScale (a, modelUnit));
-    if (offSurface === null) {
-        otherUnits = otherUnits.filter ((unit) => GetScale (unit, modelUnit) > scale);
-    }
-    let fittingUnit = otherUnits.find ((unit) => {
+    let FindFittingUnit = (isBetterFit) => otherUnits.find ((unit) => {
         let otherScale = GetScale (unit, modelUnit);
-        return !IsCollapsed (otherScale) && FindPointOffSurface (edges, otherScale, index, box, tolerance) === null;
-    });
-    let unitName = SurfaceStrainUnitToString (params.unit);
-    if (offSurface !== null) {
-        let reason = 'edge ' + offSurface.edgeIndex.toString () + ': point ' + offSurface.pointIndex.toString () + ' is not on the model';
-        if (fittingUnit !== undefined) {
-            return reason + ', the edges fit the model only if they were in ' + SurfaceStrainUnitToString (fittingUnit) + ', not ' + unitName;
+        if (IsCollapsed (otherScale)) {
+            return false;
         }
-        return reason + ', the edges may belong to another part';
+        let otherFit = MeasureSurfaceFit (edges, otherScale, index, box, tolerance);
+        return otherFit.Fits () && isBetterFit (otherFit);
+    });
+
+    if (!fit.Fits ()) {
+        let fittingUnit = FindFittingUnit (() => true);
+        if (fittingUnit !== undefined) {
+            return OffSurfaceReason (fit.offSurface) + ', the edges fit the model only if they were in ' + SurfaceStrainUnitToString (fittingUnit) + ', not ' + unitName;
+        }
+        return OffSurfaceReason (fit.offSurface) + ', the edges may belong to another part';
     }
-    if (fittingUnit !== undefined) {
-        if (IsCollapsed (scale)) {
+
+    if (collapsed) {
+        // A collapsed set lies on the surface by chance, any other unit that fits explains it.
+        let fittingUnit = FindFittingUnit (() => true);
+        if (fittingUnit !== undefined) {
             return 'the edges collapse to a point in ' + unitName + ', they fit the model only if they were in ' + SurfaceStrainUnitToString (fittingUnit);
         }
-        return 'the edges fit the model both in ' + unitName + ' and in ' + SurfaceStrainUnitToString (fittingUnit) + ', the unit is ambiguous';
+        return null;
+    }
+
+    // A fit within a quarter of the tolerance is as close as the tessellation allows.
+    if (fit.maxDistance > tolerance / CloserFitRatio) {
+        let closerUnit = FindFittingUnit ((otherFit) => otherFit.maxDistance * CloserFitRatio < fit.maxDistance);
+        if (closerUnit !== undefined) {
+            return 'the edges lie on the model only loosely in ' + unitName + ', they fit it much more closely in ' + SurfaceStrainUnitToString (closerUnit);
+        }
     }
     return null;
 }
