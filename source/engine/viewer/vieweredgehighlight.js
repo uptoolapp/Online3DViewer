@@ -53,15 +53,24 @@ export class ViewerEdgeHighlight
                 color : 0xffffff,
                 vertexColors : true,
                 linewidth : width,
-                depthTest : true,
-                // The edges lie on the surface, pull them toward the camera so the part doesn't
-                // cover half of their width. The quads are triangles, so the offset applies.
-                polygonOffset : true,
-                polygonOffsetFactor : -1,
-                polygonOffsetUnits : -4
+                depthTest : true
             });
             this.rootObject.add (new LineSegments2 (geometry, material));
         }
         return this.rootObject;
+    }
+
+    /**
+     * The polygon offset factor the meshes need so that no wall next to a line covers it. A wall
+     * rises toward the camera by its depth slope per pixel, at most sqrt (2) times the slope the
+     * polygon offset uses, over the line's half width. One more for rasterization.
+     */
+    GetMeshPolygonOffsetFactor ()
+    {
+        let maxWidth = 0.0;
+        for (let edge of this.prepared) {
+            maxWidth = Math.max (maxWidth, edge.width);
+        }
+        return Math.ceil (maxWidth * 0.5 * Math.SQRT2) + 1;
     }
 }

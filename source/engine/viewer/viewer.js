@@ -452,6 +452,7 @@ export class Viewer
         this.surfaceStrain = null;
         this.edgeHighlightModel.Clear ();
         this.edgeHighlight = null;
+        this.UpdatePolygonOffsetFactor ();
         this.Render ();
     }
 
@@ -465,6 +466,7 @@ export class Viewer
         this.surfaceStrainModel.Clear ();
         this.surfaceStrain = new ViewerSurfaceStrain (mapping, colorScale);
         this.surfaceStrainModel.SetRootObject (this.surfaceStrain.CreateThreeObject (this.shadingModel.type));
+        this.UpdatePolygonOffsetFactor ();
         this.UpdateMeshesVisibility ();
         this.Render ();
     }
@@ -511,6 +513,7 @@ export class Viewer
             this.edgeHighlight = new ViewerEdgeHighlight (prepared);
             this.edgeHighlightModel.SetRootObject (this.edgeHighlight.CreateThreeObject ());
         }
+        this.UpdatePolygonOffsetFactor ();
         this.Render ();
     }
 
@@ -526,7 +529,26 @@ export class Viewer
         }
         this.edgeHighlightModel.Clear ();
         this.edgeHighlight = null;
+        this.UpdatePolygonOffsetFactor ();
         this.Render ();
+    }
+
+    /**
+     * Thick edge highlights are flat quads facing the camera, while the walls next to an inside
+     * corner rise toward the camera across the line's width and would cover part of it. The polygon
+     * offset factor pushes every triangle back in proportion to its own depth slope, so raising it
+     * on the meshes the lines lie on keeps the lines whole at any slope. Faces turned to the camera
+     * have almost no slope and stay put, so hidden edges don't show through them.
+     */
+    UpdatePolygonOffsetFactor ()
+    {
+        let factor = (this.edgeHighlight !== null ? this.edgeHighlight.GetMeshPolygonOffsetFactor () : 1);
+        this.mainModel.SetPolygonOffsetFactor (factor);
+        this.surfaceStrainModel.Traverse ((obj) => {
+            if (obj.isMesh) {
+                obj.material.polygonOffsetFactor = factor;
+            }
+        });
     }
 
     ClearExtra ()
@@ -574,13 +596,14 @@ export class Viewer
 
     SetMeshesHighlight (highlightColor, isHighlighted)
     {
-        let withPolygonOffset = this.mainModel.HasLinesOrEdges ();
+        let withPolygonOffset = this.mainModel.NeedsPolygonOffset ();
+        let polygonOffsetFactor = this.mainModel.polygonOffsetFactor;
         this.mainModel.EnumerateMeshesAndLines ((mesh) => {
             let highlighted = isHighlighted (mesh.userData);
             if (highlighted) {
                 if (mesh.userData.threeMaterials === null) {
                     mesh.userData.threeMaterials = mesh.material;
-                    mesh.material = CreateHighlightMaterials (mesh.userData.threeMaterials, highlightColor, withPolygonOffset);
+                    mesh.material = CreateHighlightMaterials (mesh.userData.threeMaterials, highlightColor, withPolygonOffset, polygonOffsetFactor);
                 }
             } else {
                 if (mesh.userData.threeMaterials !== null) {

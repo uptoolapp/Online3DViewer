@@ -286,8 +286,12 @@ is specific to strain. The other edge fields (`edge_index`, `face_indices`, `ang
   typical part. Later calls on the same model reuse it.
 - Each successful call **replaces** every shown edge, and `[]` clears them. A failed call keeps
   the edges that are on screen. If you can't show the requested set, call `ClearEdgeHighlights`.
-- The edges are depth-tested, so the part hides the edges behind it. They are pulled slightly
-  toward the camera so they stay fully visible on the surface they lie on.
+- The edges are depth-tested, so the part hides the edges behind it. While edges are shown, the
+  model's meshes and the strain overlay get a larger polygon offset factor, sized to the widest
+  line. Each wall is pushed back by its own depth slope, so the lines stay whole at inside corners
+  at any viewing angle. Faces turned to the camera barely move, so hidden edges don't show
+  through them. Steep walls can lose about a line's half width near their silhouette, which can
+  leave a few light pixels where a steep side meets the part behind it.
 - **Independent of surface strain.** Both can be shown at the same time, and the edges are drawn
   over the strain overlay. Clearing one leaves the other.
 - Loading a new model, `Destroy ()` and `GetViewer ().Clear ()` remove the edges. Per-mesh
@@ -314,5 +318,7 @@ if (!result.ok) {
   - `Viewer.SetMeshesVisibility` stores the host's choice on each mesh's `userData.userVisible`.
   - The polygon offset that keeps edges on top of the model now sets `polygonOffsetUnits`, which a
     typo had left unset. Models with edges or lines sit very slightly further back in depth.
+  - While edge highlights are shown, the model's meshes use a polygon offset factor of up to
+    `ceil(width / 2 · √2) + 1` instead of 1. The factor goes back to 1 when the highlights are cleared.
 - **Versioning.** Only artifact version `1` is accepted. A newer artifact version resolves with
   `ok: false`, and it needs a package update. New header keys are ignored.
