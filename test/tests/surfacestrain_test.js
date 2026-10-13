@@ -427,6 +427,38 @@ describe ('Surface Strain Mapping', function () {
     });
 });
 
+describe ('Triangle Grid', function () {
+    // Two parallel 10 x 10 squares, the bottom one facing down and the top one facing up, 1 apart.
+    let positions = new Float32Array ([
+        0, 0, 0, 10, 10, 0, 10, 0, 0, 0, 0, 0, 0, 10, 0, 10, 10, 0,
+        0, 0, 1, 10, 0, 1, 10, 10, 1, 0, 0, 1, 10, 10, 1, 0, 10, 1
+    ]);
+
+    it ('Finds the closest triangle without an index array', function () {
+        let grid = new OV.TriangleGrid (positions, null, [0, 0, 0], [10, 10, 1], 2.0, false);
+        assert.strictEqual (grid.normals, null);
+        let hit = new OV.TriangleGridHit ();
+        assert.ok (grid.FindClosest (3.0, 7.0, 0.2, 0.0, 0.0, 0.0, 0.5, hit));
+        assert.ok (hit.triangle === 0 || hit.triangle === 1);
+        assert.ok (Math.abs (hit.distance - 0.2) < 1e-6);
+        assert.strictEqual (grid.VertexIndex (hit.triangle, 2), hit.triangle * 3 + 2);
+        // Without stored normals a normal doesn't filter anything.
+        assert.ok (grid.FindClosest (3.0, 7.0, 0.2, 0.0, 0.0, 1.0, 0.5, hit));
+        assert.ok (hit.triangle === 0 || hit.triangle === 1);
+        assert.ok (!grid.FindClosest (3.0, 7.0, 5.0, 0.0, 0.0, 0.0, 0.5, hit));
+        assert.strictEqual (hit.triangle, -1);
+    });
+
+    it ('Filters by normal when it stores normals', function () {
+        let grid = new OV.TriangleGrid (positions, null, [0, 0, 0], [10, 10, 1], 2.0, true);
+        let hit = new OV.TriangleGridHit ();
+        // Closer to the bottom square, but it faces down, so the top square is found.
+        assert.ok (grid.FindClosest (3.0, 7.0, 0.2, 0.0, 0.0, 1.0, 2.0, hit));
+        assert.ok (hit.triangle === 2 || hit.triangle === 3);
+        assert.ok (Math.abs (hit.distance - 0.8) < 1e-6);
+    });
+});
+
 describe ('Surface Strain Thresholds', function () {
     function Log10Microstrain (microstrain)
     {

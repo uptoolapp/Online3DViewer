@@ -1,7 +1,7 @@
+import { TriangleGrid, TriangleGridHit } from '../geometry/trianglegrid.js';
 import { GetBoundingBox } from '../model/modelutils.js';
 import { Unit, convertUnit } from '../model/unit.js';
 import { ParseHexColor } from '../surfacestrain/surfacestraincolor.js';
-import { SurfaceStrainIndex, SurfaceStrainSample } from '../surfacestrain/surfacestrainsampler.js';
 import { SurfaceStrainUnitCandidates, SurfaceStrainUnitToString } from '../surfacestrain/surfacestrainunits.js';
 
 // Coloured polylines drawn on the model, for example the risky edges of a frequency analysis.
@@ -76,7 +76,7 @@ export class PreparedEdgeHighlight
 const ModelSurfaceCache = new WeakMap ();
 
 /**
- * @returns {{box: Box3D, index: SurfaceStrainIndex}|null} Null for an empty model.
+ * @returns {{box: Box3D, index: TriangleGrid}|null} Null for an empty model.
  */
 function GetModelSurface (model)
 {
@@ -101,22 +101,12 @@ function GetModelSurface (model)
             }
         });
     });
-    let triangles = new Uint32Array (positions.length / 3);
-    for (let i = 0; i < triangles.length; i++) {
-        triangles[i] = i;
-    }
-
-    // The closest point grid of the surface strain mapping, over the model's own triangles.
+    // Every three consecutive vertices form a triangle, so no index array, and no normals.
     let bboxMin = [box.min.x, box.min.y, box.min.z];
     let bboxSize = [box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z];
-    let index = new SurfaceStrainIndex ({
-        positions : positions,
-        triangles : triangles,
-        log10Strain : new Float32Array (triangles.length),
-        bboxMin : bboxMin,
-        bboxSize : bboxSize,
-        meshSize : Math.max (bboxSize[0], bboxSize[1], bboxSize[2]) / 128.0
-    });
+    let largestSize = Math.max (bboxSize[0], bboxSize[1], bboxSize[2]);
+    let cellSize = largestSize > 0.0 ? largestSize / 128.0 : 1.0;
+    let index = new TriangleGrid (positions, null, bboxMin, bboxSize, cellSize, false);
     surface = { box : box, index : index };
     ModelSurfaceCache.set (model, surface);
     return surface;
@@ -188,7 +178,7 @@ class SurfaceFit
  */
 function MeasureSurfaceFit (edges, scale, index, box, tolerance)
 {
-    let sample = new SurfaceStrainSample ();
+    let hit = new TriangleGridHit ();
     let maxDistance = 0.0;
     for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
         let positions = edges[edgeIndex].positions;
@@ -201,10 +191,10 @@ function MeasureSurfaceFit (edges, scale, index, box, tolerance)
                 y >= box.min.y - tolerance && y <= box.max.y + tolerance &&
                 z >= box.min.z - tolerance && z <= box.max.z + tolerance
             );
-            if (!insideBox || !index.Sample (x, y, z, 0.0, 0.0, 0.0, tolerance, sample)) {
+            if (!insideBox || !index.FindClosest (x, y, z, 0.0, 0.0, 0.0, tolerance, hit)) {
                 return new SurfaceFit ({ edgeIndex : edgeIndex, pointIndex : i }, Infinity);
             }
-            maxDistance = Math.max (maxDistance, sample.distance);
+            maxDistance = Math.max (maxDistance, hit.distance);
         }
     }
     return new SurfaceFit (null, maxDistance);

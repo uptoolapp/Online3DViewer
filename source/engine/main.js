@@ -23,6 +23,7 @@ import { Matrix, MatrixIsEqual } from './geometry/matrix.js';
 import { OctreeNode, Octree } from './geometry/octree.js';
 import { Quaternion, QuaternionIsEqual, ArrayToQuaternion, QuaternionFromAxisAngle, QuaternionFromXYZ } from './geometry/quaternion.js';
 import { Transformation, TransformationIsEqual } from './geometry/transformation.js';
+import { TriangleGridHit, TriangleGrid } from './geometry/trianglegrid.js';
 import { BezierTweenFunction, LinearTweenFunction, ParabolicTweenFunction, TweenCoord3D } from './geometry/tween.js';
 import { ImportSettings, ImportError, ImportResult, ImporterFileAccessor, Importer, ImportErrorCode } from './import/importer.js';
 import { Importer3dm } from './import/importer3dm.js';
@@ -167,6 +168,8 @@ export {
     QuaternionFromXYZ,
     Transformation,
     TransformationIsEqual,
+    TriangleGridHit,
+    TriangleGrid,
     BezierTweenFunction,
     LinearTweenFunction,
     ParabolicTweenFunction,
