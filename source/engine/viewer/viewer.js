@@ -7,6 +7,7 @@ import { GetDomElementInnerDimensions } from './domutils.js';
 import { Navigation } from './navigation.js';
 import { ShadingModel } from './shadingmodel.js';
 import { ViewerModel, ViewerMainModel } from './viewermodel.js';
+import { ViewerEdgeHighlight } from './vieweredgehighlight.js';
 import { ViewerSurfaceStrain } from './viewersurfacestrain.js';
 
 import * as THREE from 'three';
@@ -169,6 +170,8 @@ export class Viewer
         this.extraModel = null;
         this.surfaceStrainModel = null;
         this.surfaceStrain = null;
+        this.edgeHighlightModel = null;
+        this.edgeHighlight = null;
         this.camera = null;
         this.projectionMode = null;
         this.cameraValidator = null;
@@ -203,6 +206,7 @@ export class Viewer
         this.mainModel = new ViewerMainModel (this.scene);
         this.extraModel = new ViewerModel (this.scene);
         this.surfaceStrainModel = new ViewerModel (this.scene);
+        this.edgeHighlightModel = new ViewerModel (this.scene);
 
         this.InitNavigation ();
         this.InitShading ();
@@ -446,6 +450,9 @@ export class Viewer
         this.extraModel.Clear ();
         this.surfaceStrainModel.Clear ();
         this.surfaceStrain = null;
+        this.edgeHighlightModel.Clear ();
+        this.edgeHighlight = null;
+        this.UpdatePolygonOffsetFactor ();
         this.Render ();
     }
 
@@ -459,6 +466,7 @@ export class Viewer
         this.surfaceStrainModel.Clear ();
         this.surfaceStrain = new ViewerSurfaceStrain (mapping, colorScale);
         this.surfaceStrainModel.SetRootObject (this.surfaceStrain.CreateThreeObject (this.shadingModel.type));
+        this.UpdatePolygonOffsetFactor ();
         this.UpdateMeshesVisibility ();
         this.Render ();
     }
@@ -491,6 +499,56 @@ export class Viewer
         this.surfaceStrain = null;
         this.UpdateMeshesVisibility ();
         this.Render ();
+    }
+
+    /**
+     * Shows prepared edge highlights on top of the model, replacing the shown ones.
+     * @param {PreparedEdgeHighlight[]} prepared Result of PrepareEdgeHighlights.
+     */
+    SetEdgeHighlights (prepared)
+    {
+        this.edgeHighlightModel.Clear ();
+        this.edgeHighlight = null;
+        if (prepared.length > 0) {
+            this.edgeHighlight = new ViewerEdgeHighlight (prepared);
+            this.edgeHighlightModel.SetRootObject (this.edgeHighlight.CreateThreeObject ());
+        }
+        this.UpdatePolygonOffsetFactor ();
+        this.Render ();
+    }
+
+    HasEdgeHighlights ()
+    {
+        return this.edgeHighlight !== null;
+    }
+
+    ClearEdgeHighlights ()
+    {
+        if (this.edgeHighlight === null) {
+            return;
+        }
+        this.edgeHighlightModel.Clear ();
+        this.edgeHighlight = null;
+        this.UpdatePolygonOffsetFactor ();
+        this.Render ();
+    }
+
+    /**
+     * Thick edge highlights are flat quads facing the camera, while the walls next to an inside
+     * corner rise toward the camera across the line's width and would cover part of it. The polygon
+     * offset factor pushes every triangle back in proportion to its own depth slope, so raising it
+     * on the meshes the lines lie on keeps the lines whole at any slope. Faces turned to the camera
+     * have almost no slope and stay put, so hidden edges don't show through them.
+     */
+    UpdatePolygonOffsetFactor ()
+    {
+        let factor = (this.edgeHighlight !== null ? this.edgeHighlight.GetMeshPolygonOffsetFactor () : 1);
+        this.mainModel.SetPolygonOffsetFactor (factor);
+        this.surfaceStrainModel.Traverse ((obj) => {
+            if (obj.isMesh) {
+                obj.material.polygonOffsetFactor = factor;
+            }
+        });
     }
 
     ClearExtra ()
@@ -538,13 +596,14 @@ export class Viewer
 
     SetMeshesHighlight (highlightColor, isHighlighted)
     {
-        let withPolygonOffset = this.mainModel.HasLinesOrEdges ();
+        let withPolygonOffset = this.mainModel.NeedsPolygonOffset ();
+        let polygonOffsetFactor = this.mainModel.polygonOffsetFactor;
         this.mainModel.EnumerateMeshesAndLines ((mesh) => {
             let highlighted = isHighlighted (mesh.userData);
             if (highlighted) {
                 if (mesh.userData.threeMaterials === null) {
                     mesh.userData.threeMaterials = mesh.material;
-                    mesh.material = CreateHighlightMaterials (mesh.userData.threeMaterials, highlightColor, withPolygonOffset);
+                    mesh.material = CreateHighlightMaterials (mesh.userData.threeMaterials, highlightColor, withPolygonOffset, polygonOffsetFactor);
                 }
             } else {
                 if (mesh.userData.threeMaterials !== null) {

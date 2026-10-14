@@ -20,7 +20,7 @@ Adding one (for example `#model=…$strain=<url>`) would be a separate change.
 ## Packaging
 
 - Rebuild the package tarball the same way as today, then update `online-3d-viewer.tgz` and its
-  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.11`) so the two
+  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.12`) so the two
   builds can be told apart.
 - `occt-import-js` stays at `0.0.22`. The `vite-plugin-static-copy` setup, the `/occt-import-js/`
   location and `OV.SetExternalLibLocation ("occt-import-js", "/occt-import-js/")` don't change.
@@ -241,6 +241,76 @@ const viewer = new OV.EmbeddedViewer(container, {
 viewer.LoadModelFromUrlList([fileUrl]);
 ```
 
+## Edge highlights
+
+The viewer can also draw the risky edges from the analysis (for example sharp internal corners) as
+coloured lines on the part. This API is generic: it takes polylines and colours, and nothing in it
+is specific to strain. The other edge fields (`edge_index`, `face_indices`, `angle_deg`,
+`length_mm`) stay in the host, for its own list or tooltip.
+
+### `EmbeddedViewer.ShowEdgeHighlights (edges, params?) → EdgeHighlightResult`
+
+- `edges`: a list of `OV.EdgeHighlight`, or plain objects with the same fields:
+
+  | Field      | Type         | Meaning                                                                                   |
+  | ---------- | ------------ | ----------------------------------------------------------------------------------------- |
+  | `polyline` | `number[][]` | `[[x, y, z], …]` with at least 2 points, in `params.unit`. Pass the edge's `polyline_xyz` unchanged. |
+  | `color`    | `string`     | Hex colour, `"#rrggbb"` or `"rrggbb"`.                                                     |
+  | `width`    | `number?`    | Line width in CSS pixels. Overrides `params.width` for this edge.                          |
+
+- `params`: optional `OV.EdgeHighlightParams`.
+
+  | Field            | Default              | Meaning                                                                          |
+  | ---------------- | -------------------- | -------------------------------------------------------------------------------- |
+  | `unit`             | `OV.Unit.Millimeter` | Unit of the coordinates: `Millimeter`, `Centimeter`, `Meter`, `Inch` or `Foot`. They are converted to the model's unit. If the model's unit is unknown, they are used as they are. |
+  | `width`            | `4`                  | Default line width in CSS pixels. Lines keep this width at any zoom.          |
+  | `surfaceTolerance` | `0.002`              | Every point must lie this close to the model's surface, as a fraction of the largest size of its bounding box. That is twice the deflection the viewer tessellates STEP with. |
+
+- `EdgeHighlightResult` is `{ ok, reason, edgeCount }`.
+- The call is **synchronous** and **never throws**. Call it after `onModelLoaded`. Before that it
+  returns `ok: false` with `no model is loaded`.
+- It is **all or nothing**. One invalid edge fails the whole call, and `reason` names it, for
+  example `edge 3: polyline needs at least 2 points`. A colour that isn't hex, a coordinate that
+  isn't finite, a width that isn't positive and an unsupported `unit` are refused the same way.
+  The texts aren't stable, so don't parse them.
+- **Same part, same unit.** The polylines are tessellation vertices of the part's own edges, so
+  every point must lie on the model's surface. That refuses edges of another part, and edges in a
+  unit that is too large. Edges in a unit that is too small shrink toward the origin, and they can
+  land on the surface there, but only loosely. The viewer refuses them in two cases: when they
+  collapse to a point in the declared unit but fit in another unit (`… collapse to a point in mm …`),
+  and when another unit fits them at least 4 times more closely (`… only loosely in mm …`). Edges
+  that fit closely in the declared unit are accepted, even if they would fit in another unit too,
+  because an edge on a line or a face through the origin stays on it when it's scaled. The same
+  preconditions as for surface strain apply: the same STEP, and the model is never moved.
+- The first call on a model builds a surface index, which takes a few tens of milliseconds for a
+  typical part. Later calls on the same model reuse it.
+- Each successful call **replaces** every shown edge, and `[]` clears them. A failed call keeps
+  the edges that are on screen. If you can't show the requested set, call `ClearEdgeHighlights`.
+- The edges are depth-tested, so the part hides the edges behind it. While edges are shown, the
+  model's meshes and the strain overlay get a larger polygon offset factor, sized to the widest
+  line. Each wall is pushed back by its own depth slope, so the lines stay whole at inside corners
+  at any viewing angle. Faces turned to the camera barely move, so hidden edges don't show
+  through them. Steep walls can lose about a line's half width near their silhouette, which can
+  leave a few light pixels where a steep side meets the part behind it.
+- **Independent of surface strain.** Both can be shown at the same time, and the edges are drawn
+  over the strain overlay. Clearing one leaves the other.
+- Loading a new model, `Destroy ()` and `GetViewer ().Clear ()` remove the edges. Per-mesh
+  `SetMeshesVisibility` doesn't hide them. They are display only: they can't be picked, and they
+  don't affect the camera fit.
+
+### `EmbeddedViewer.ClearEdgeHighlights ()`
+
+Removes the edges. Safe to call at any time.
+
+```ts
+const result = viewer.ShowEdgeHighlights(
+  riskyEdges.map((edge) => ({ polyline: edge.polyline_xyz, color: edge.angle_deg <= 90 ? "#ff0000" : "#ffa500" }))
+);
+if (!result.ok) {
+  console.warn("risky edges not shown:", result.reason);
+}
+```
+
 ## Compatibility
 
 - **Non-breaking.** Existing calls behave as before, with these small differences:
@@ -248,5 +318,7 @@ viewer.LoadModelFromUrlList([fileUrl]);
   - `Viewer.SetMeshesVisibility` stores the host's choice on each mesh's `userData.userVisible`.
   - The polygon offset that keeps edges on top of the model now sets `polygonOffsetUnits`, which a
     typo had left unset. Models with edges or lines sit very slightly further back in depth.
+  - While edge highlights are shown, the model's meshes use a polygon offset factor of up to
+    `ceil(width / 2 · √2) + 1` instead of 1. The factor goes back to 1 when the highlights are cleared.
 - **Versioning.** Only artifact version `1` is accepted. A newer artifact version resolves with
   `ok: false`, and it needs a package update. New header keys are ignored.

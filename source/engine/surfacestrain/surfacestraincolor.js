@@ -79,7 +79,7 @@ export class SurfaceStrainColorScale
 export const SurfaceStrainMaxThresholdCount = 16;
 export const SurfaceStrainDefaultBelowThresholdColor = '#c8c8c8';
 
-function ParseHexColor (value, what)
+export function ParseHexColor (value, what)
 {
     if (typeof value !== 'string' || !/^#?[0-9a-fA-F]{6}$/.test (value)) {
         throw new Error (what + ' must be a hex color like #ff0000, got ' + JSON.stringify (value));

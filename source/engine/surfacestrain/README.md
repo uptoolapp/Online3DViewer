@@ -56,8 +56,8 @@ Two points drive the design:
         ▼
    ④ MapSurfaceStrainToModel(model, geometry)          surfacestrainsampler.js
       │
-      ├─ SurfaceStrainIndex: uniform grid (cell = meshSize) over FE triangles,
-      │                      outward normals precomputed
+      ├─ SurfaceStrainIndex: TriangleGrid (cell = meshSize) over FE triangles,
+      │                      outward normals precomputed, plus the strain
       │
       └─ for each MeshInstance ─► for each BREP face range:
             CollectFaceGeometry  (apply node transform, per-face normals)
@@ -147,7 +147,9 @@ failure distance all use `geometry.meshSize` in model units, so no other code de
    are no T-junctions. A shared 4M-vertex budget guards against huge parts, and when it runs out
    the result reports `capped`. Refining face by face keeps normals from being averaged across
    face edges, and it gives hot spots in the middle of flat walls a vertex to land on.
-3. **Sample.** `SurfaceStrainIndex` is a uniform grid with cell size `meshSize` over the FE triangles.
+3. **Sample.** `SurfaceStrainIndex` interpolates the strain at the closest point that a `TriangleGrid`
+   (`source/engine/geometry/trianglegrid.js`) finds. The grid is a uniform grid with cell size
+   `meshSize` over the FE triangles, and holds geometry only, so the edge highlights reuse it.
    A triangle only goes into the cells its plane passes through. Without that, large slanted
    triangles filled their whole 3D bounding box, and one test file took 207 s instead of under 1 s.
    For each refined vertex `p` with normal `n`:

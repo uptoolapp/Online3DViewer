@@ -11,14 +11,14 @@ export const IntersectionMode =
     MeshAndLine : 2
 };
 
-export function SetThreeMeshPolygonOffset (mesh, offset)
+export function SetThreeMeshPolygonOffset (mesh, offset, factor = 1)
 {
     function SetMaterialsPolygonOffset (materials, offset)
     {
         for (let material of materials) {
             material.polygonOffset = offset;
             material.polygonOffsetUnits = 1;
-            material.polygonOffsetFactor = 1;
+            material.polygonOffsetFactor = factor;
         }
     }
 
@@ -129,6 +129,9 @@ export class ViewerMainModel
         this.edgeSettings = new EdgeSettings (false, new RGBColor (0, 0, 0), 1);
         this.hasLines = false;
         this.hasPolygonOffset = false;
+        // Raised while thick lines are drawn on the meshes, see Viewer.UpdatePolygonOffsetFactor.
+        this.polygonOffsetFactor = 1;
+        this.appliedPolygonOffsetFactor = 1;
     }
 
     SetMainObject (mainObject)
@@ -136,6 +139,7 @@ export class ViewerMainModel
         this.mainModel.SetRootObject (mainObject);
         this.hasLines = false;
         this.hasPolygonOffset = false;
+        this.appliedPolygonOffsetFactor = 1;
 
         this.EnumerateLines ((line) => {
             this.hasLines = true;
@@ -287,14 +291,26 @@ export class ViewerMainModel
         return this.hasLines || this.edgeSettings.showEdges;
     }
 
+    NeedsPolygonOffset ()
+    {
+        return this.HasLinesOrEdges () || this.polygonOffsetFactor !== 1;
+    }
+
+    SetPolygonOffsetFactor (factor)
+    {
+        this.polygonOffsetFactor = factor;
+        this.UpdatePolygonOffset ();
+    }
+
     UpdatePolygonOffset ()
     {
-        let needPolygonOffset = this.HasLinesOrEdges ();
-        if (needPolygonOffset !== this.hasPolygonOffset) {
+        let needPolygonOffset = this.NeedsPolygonOffset ();
+        if (needPolygonOffset !== this.hasPolygonOffset || this.polygonOffsetFactor !== this.appliedPolygonOffsetFactor) {
             this.EnumerateMeshes ((mesh) => {
-                SetThreeMeshPolygonOffset (mesh, needPolygonOffset);
+                SetThreeMeshPolygonOffset (mesh, needPolygonOffset, this.polygonOffsetFactor);
             });
             this.hasPolygonOffset = needPolygonOffset;
+            this.appliedPolygonOffsetFactor = this.polygonOffsetFactor;
         }
     }
 

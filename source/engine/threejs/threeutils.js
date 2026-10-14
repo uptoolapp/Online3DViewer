@@ -211,7 +211,7 @@ export function ConvertThreeGeometryToMesh (threeGeometry, materialIndex, colorC
     return mesh;
 }
 
-export function CreateHighlightMaterial (originalMaterial, highlightColor, withPolygonOffset)
+export function CreateHighlightMaterial (originalMaterial, highlightColor, withPolygonOffset, polygonOffsetFactor = 1)
 {
     let material = null;
     if (originalMaterial.type === 'MeshPhongMaterial') {
@@ -232,12 +232,12 @@ export function CreateHighlightMaterial (originalMaterial, highlightColor, withP
     if (material !== null && withPolygonOffset) {
         material.polygonOffset = true;
         material.polygonOffsetUnits = 1;
-        material.polygonOffsetFactor = 1;
+        material.polygonOffsetFactor = polygonOffsetFactor;
     }
     return material;
 }
 
-export function CreateHighlightMaterials (originalMaterials, highlightColor, withPolygonOffset)
+export function CreateHighlightMaterials (originalMaterials, highlightColor, withPolygonOffset, polygonOffsetFactor = 1)
 {
     let typeToHighlightMaterial = new Map ();
     let highlightMaterials = [];
@@ -246,7 +246,7 @@ export function CreateHighlightMaterials (originalMaterials, highlightColor, wit
             highlightMaterials.push (typeToHighlightMaterial.get (originalMaterial.type));
             continue;
         }
-        let highlightMaterial = CreateHighlightMaterial (originalMaterial, highlightColor, withPolygonOffset);
+        let highlightMaterial = CreateHighlightMaterial (originalMaterial, highlightColor, withPolygonOffset, polygonOffsetFactor);
         typeToHighlightMaterial.set (originalMaterial.type, highlightMaterial);
         highlightMaterials.push (highlightMaterial);
     }
