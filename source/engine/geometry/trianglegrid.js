@@ -14,6 +14,9 @@ export class TriangleGridHit
     }
 }
 
+/**
+ * Uniform grid over a triangle soup that finds the closest point of the triangles to a point.
+ */
 export class TriangleGrid
 {
     /**
