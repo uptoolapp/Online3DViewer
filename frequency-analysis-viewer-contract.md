@@ -311,6 +311,43 @@ if (!result.ok) {
 }
 ```
 
+## Website in an iframe (postMessage)
+
+The website (`build/package/website/index.html#model=<url>`) accepts the same overlays from the page
+that embeds it in a same-origin iframe. It uses the same engine code as `EmbeddedViewer`
+(`ViewerOverlays`), so results and failure semantics are identical. Opened standalone
+(`window.parent === window`) it installs no listener and posts nothing.
+
+Messages are plain objects. Each command may carry a `requestId`, echoed in its result.
+
+| Parent → website `type` | Payload | Same as |
+|---|---|---|
+| `o3dv:edge-highlights:show` | `edges: { polyline: [x,y,z][], color, width? }[]` (mm) | `ShowEdgeHighlights` |
+| `o3dv:edge-highlights:clear` | | `ClearEdgeHighlights` |
+| `o3dv:surface-strain:show` | `buffer: ArrayBuffer` (send it as a transferable), `thresholds?` | `ShowSurfaceStrain` |
+| `o3dv:surface-strain:colors` | `thresholds` | `SetSurfaceStrainColors` |
+| `o3dv:surface-strain:clear` | | `ClearSurfaceStrain` |
+
+| Website → parent `type` | When |
+|---|---|
+| `o3dv:ready` | The listener is installed, the parent may send from then on. |
+| `o3dv:model-loaded` | A model finished loading, before the overlays are reapplied. |
+| `o3dv:model-load-failed` | A model failed to load. |
+| `o3dv:result` | `{ requestId, command, ok, reason }`. `command` is the command's `type`, `reason` is a string when `ok` is false, null otherwise. |
+
+- **Origin.** Only messages with `event.source === window.parent` and `event.origin` equal to the
+  website's own origin are handled. Replies are posted to that origin. Anything else is ignored.
+- **Stored state.** The website keeps the last requested edges and strain (buffer and thresholds)
+  and reapplies them after every model load, including one started from the website's own UI. A
+  reapply posts a result with `requestId: null`. A failed show keeps the previous drawing, as in
+  the engine; the parent decides whether to clear.
+- **Before the model.** A command sent before a model is shown is answered when it is applied on
+  load. If a later show or clear of the same overlay arrives first, it is answered with `ok: false`.
+  `colors` without any requested strain fails at once; with a pending strain it gets the strain's
+  result, and the new colors are used.
+- **Toolbar.** The overlays stay through camera moves, measure mode and settings (edge display,
+  theme), none of which rebuild the scene.
+
 ## Compatibility
 
 - **Non-breaking.** Existing calls behave as before, with these small differences:

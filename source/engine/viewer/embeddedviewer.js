@@ -5,10 +5,8 @@ import { ImportErrorCode, ImportSettings } from '../import/importer.js';
 import { TransformFileHostUrls } from '../io/fileutils.js';
 import { ParameterConverter } from '../parameters/parameterlist.js';
 import { ThreeModelLoader } from '../threejs/threemodelloader.js';
-import { EdgeHighlightResult, PrepareEdgeHighlights } from '../edgehighlight/edgehighlight.js';
-import { PrepareSurfaceStrain, SurfaceStrainParams, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
-import { CreateSurfaceStrainColorScale } from '../surfacestrain/surfacestraincolor.js';
 import { Viewer } from './viewer.js';
+import { ViewerOverlays } from './vieweroverlays.js';
 import { EnvironmentSettings } from './shadingmodel.js';
 import { Loc } from '../core/localization.js';
 
@@ -72,10 +70,7 @@ export class EmbeddedViewer
 
         this.model = null;
         this.modelLoader = new ThreeModelLoader ();
-        this.surfaceStrainHeader = null;
-        // Bumped whenever a pending ShowSurfaceStrain must not paint anymore: the model changed,
-        // the strain was cleared, or the viewer was destroyed.
-        this.surfaceStrainRequest = 0;
+        this.overlays = new ViewerOverlays (this.viewer);
 
         this.progressDiv = null;
         window.addEventListener ('resize', () => {
@@ -129,8 +124,7 @@ export class EmbeddedViewer
         }
 
         this.model = null;
-        this.surfaceStrainHeader = null;
-        this.surfaceStrainRequest += 1;
+        this.overlays.SetModel (null);
         if (this.progressDiv !== null) {
             this.parentElement.removeChild (this.progressDiv);
             this.progressDiv = null;
@@ -169,6 +163,7 @@ export class EmbeddedViewer
                 }
 
                 this.model = importResult.model;
+                this.overlays.SetModel (this.model);
                 if (this.parameters.onModelLoaded) {
                     this.parameters.onModelLoaded ();
                 }
@@ -227,36 +222,7 @@ export class EmbeddedViewer
      */
     ShowSurfaceStrain (buffer, params)
     {
-        return new Promise ((resolve) => {
-            if (this.model === null) {
-                let result = new SurfaceStrainResult ();
-                result.reason = 'no model is loaded';
-                resolve (result);
-                return;
-            }
-            let model = this.model;
-            let request = this.surfaceStrainRequest;
-            // Let the browser render before the mapping blocks the main thread.
-            setTimeout (() => {
-                let result = new SurfaceStrainResult ();
-                if (request !== this.surfaceStrainRequest || this.model !== model) {
-                    result.reason = 'the model changed or the surface strain was cleared before it was shown';
-                    resolve (result);
-                    return;
-                }
-                try {
-                    result = PrepareSurfaceStrain (model, buffer, params);
-                    if (result.ok) {
-                        this.surfaceStrainHeader = result.header;
-                        this.viewer.SetSurfaceStrain (result.mapping, result.colorScale);
-                    }
-                } catch (error) {
-                    result = new SurfaceStrainResult ();
-                    result.reason = error.message;
-                }
-                resolve (result);
-            }, 0);
-        });
+        return this.overlays.ShowSurfaceStrain (buffer, params);
     }
 
     /**
@@ -269,17 +235,7 @@ export class EmbeddedViewer
      */
     SetSurfaceStrainColors (params)
     {
-        if (!this.viewer.HasSurfaceStrain () || this.surfaceStrainHeader === null) {
-            return { ok : false, reason : 'no surface strain is shown', colorScale : null };
-        }
-        let colorScale = null;
-        try {
-            colorScale = CreateSurfaceStrainColorScale (params || new SurfaceStrainParams (), this.surfaceStrainHeader);
-        } catch (error) {
-            return { ok : false, reason : error.message, colorScale : null };
-        }
-        this.viewer.SetSurfaceStrainColorScale (colorScale);
-        return { ok : true, reason : null, colorScale : colorScale };
+        return this.overlays.SetSurfaceStrainColors (params);
     }
 
     /**
@@ -287,9 +243,7 @@ export class EmbeddedViewer
      */
     ClearSurfaceStrain ()
     {
-        this.viewer.ClearSurfaceStrain ();
-        this.surfaceStrainHeader = null;
-        this.surfaceStrainRequest += 1;
+        this.overlays.ClearSurfaceStrain ();
     }
 
     /**
@@ -305,22 +259,7 @@ export class EmbeddedViewer
      */
     ShowEdgeHighlights (edges, params)
     {
-        if (this.model === null) {
-            let result = new EdgeHighlightResult ();
-            result.reason = 'no model is loaded';
-            return result;
-        }
-        try {
-            let prepared = PrepareEdgeHighlights (this.model, edges, params);
-            if (prepared.result.ok) {
-                this.viewer.SetEdgeHighlights (prepared.prepared);
-            }
-            return prepared.result;
-        } catch (error) {
-            let result = new EdgeHighlightResult ();
-            result.reason = error.message;
-            return result;
-        }
+        return this.overlays.ShowEdgeHighlights (edges, params);
     }
 
     /**
@@ -328,7 +267,7 @@ export class EmbeddedViewer
      */
     ClearEdgeHighlights ()
     {
-        this.viewer.ClearEdgeHighlights ();
+        this.overlays.ClearEdgeHighlights ();
     }
 
     /**
@@ -351,7 +290,7 @@ export class EmbeddedViewer
         this.modelLoader.Destroy ();
         this.viewer.Destroy ();
         this.model = null;
-        this.surfaceStrainRequest += 1;
+        this.overlays.SetModel (null);
     }
 }
 

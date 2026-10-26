@@ -4,10 +4,12 @@ import { ImportErrorCode, ImportSettings } from '../engine/import/importer.js';
 import { NavigationMode, ProjectionMode } from '../engine/viewer/camera.js';
 import { RGBColor } from '../engine/model/color.js';
 import { Viewer } from '../engine/viewer/viewer.js';
+import { ViewerOverlays } from '../engine/viewer/vieweroverlays.js';
 import { AddDiv, AddDomElement, ShowDomElement, SetDomElementOuterHeight, CreateDomElement, GetDomElementOuterWidth } from '../engine/viewer/domutils.js';
 import { CalculatePopupPositionToScreen, ShowListPopup } from './dialogs.js';
 import { HandleEvent } from './eventhandler.js';
 import { HashHandler } from './hashhandler.js';
+import { HostMessageHandler } from './hostmessages.js';
 import { Navigator, Selection, SelectionType } from './navigator.js';
 import { CameraSettings, Settings, Theme } from './settings.js';
 import { Sidebar } from './sidebar.js';
@@ -187,6 +189,8 @@ export class Website
         this.settings = new Settings (Theme.Light);
         this.cameraSettings = new CameraSettings ();
         this.viewer = new Viewer ();
+        this.overlays = new ViewerOverlays (this.viewer);
+        this.hostMessages = new HostMessageHandler (window, this.overlays);
         this.measureTool = new MeasureTool (this.viewer, this.settings);
         this.hashHandler = new HashHandler ();
         this.toolbar = new Toolbar (this.parameters.toolbarDiv);
@@ -229,6 +233,8 @@ export class Website
 
         this.layouter.Init ();
         this.SetUIState (WebsiteUIState.Intro);
+
+        this.hostMessages.Install ();
 
         this.hashHandler.SetEventListener (this.OnHashChange.bind (this));
         this.OnHashChange ();
@@ -282,6 +288,7 @@ export class Website
         CloseAllDialogs ();
 
         this.model = null;
+        this.overlays.SetModel (null);
         this.viewer.Clear ();
 
         this.parameters.fileNameDiv.innerHTML = '';
@@ -301,6 +308,8 @@ export class Website
         this.navigator.FillTree (importResult);
         this.sidebar.UpdateControlsVisibility ();
         this.FitModelToWindow (true);
+        this.overlays.SetModel (this.model);
+        this.hostMessages.OnModelLoaded ();
     }
 
     OnModelClicked (button, mouseCoordinates)
@@ -508,6 +517,7 @@ export class Website
             onError : (importError) =>
             {
                 this.SetUIState (WebsiteUIState.Intro);
+                this.hostMessages.OnModelLoadFailed ();
                 let extensionStr = null;
                 if (importError.mainFile !== null) {
                     extensionStr = GetFileExtension (importError.mainFile);

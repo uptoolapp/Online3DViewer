@@ -85,6 +85,7 @@ import { EnvironmentSettings, ShadingModel } from './viewer/shadingmodel.js';
 import { CameraValidator, UpVector, Viewer, GetDefaultCamera, TraverseThreeObject, GetShadingTypeOfObject } from './viewer/viewer.js';
 import { ViewerEdgeHighlight } from './viewer/vieweredgehighlight.js';
 import { ViewerModel, EdgeSettings, ViewerMainModel, SetThreeMeshPolygonOffset, IntersectionMode } from './viewer/viewermodel.js';
+import { ViewerOverlays } from './viewer/vieweroverlays.js';
 import { ViewerSurfaceStrain } from './viewer/viewersurfacestrain.js';
 
 export {
@@ -414,5 +415,6 @@ export {
     ViewerMainModel,
     SetThreeMeshPolygonOffset,
     IntersectionMode,
+    ViewerOverlays,
     ViewerSurfaceStrain
 };
