@@ -20,7 +20,7 @@ Adding one (for example `#model=…$strain=<url>`) would be a separate change.
 ## Packaging
 
 - Rebuild the package tarball the same way as today, then update `online-3d-viewer.tgz` and its
-  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.12`) so the two
+  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.13`) so the two
   builds can be told apart.
 - `occt-import-js` stays at `0.0.22`. The `vite-plugin-static-copy` setup, the `/occt-import-js/`
   location and `OV.SetExternalLibLocation ("occt-import-js", "/occt-import-js/")` don't change.
@@ -311,6 +311,30 @@ if (!result.ok) {
 }
 ```
 
+## Model opacity
+
+### `EmbeddedViewer.SetModelOpacity (opacity) → { ok, reason }`
+
+Fades the part so the edge highlights behind it show through, for a "see through" toggle.
+`opacity` is a number in `(0, 1]`; `1` shows the model solid and is the default.
+
+- **What fades.** The model's meshes, the surface strain overlay and highlighted (selected) meshes.
+  Each material's opacity is multiplied by `opacity`, it becomes transparent, and it stops writing
+  depth, so hidden edges pass the depth test. A model's own transparent material is restored
+  exactly when the opacity goes back to `1`. A material shared by several meshes fades once.
+- **Edges on top.** While faded, the edge highlights draw after the faded surfaces, so they aren't
+  dimmed. Their width and color don't change. The website's own edge display (black lines) stays
+  solid.
+- **A setting, not an overlay.** It may be called before a model loads, and it stays through model
+  loads, surface strain shows and recolors, edge highlight changes and `GetViewer ().Clear ()`.
+  The host sets it when the toggle changes and doesn't need to handle loads.
+- **Failure.** A value that isn't a finite number in `(0, 1]` (`0`, `-1`, `1.5`, `NaN`, a string)
+  returns `{ ok: false, reason: "opacity must be a number in (0, 1]" }` and changes nothing.
+
+```ts
+const result = viewer.SetModelOpacity(seeThrough ? 0.2 : 1);
+```
+
 ## Website in an iframe (postMessage)
 
 The website (`build/package/website/index.html#model=<url>`) accepts the same overlays from the page
@@ -327,6 +351,7 @@ Messages are plain objects. Each command may carry a `requestId`, echoed in its 
 | `o3dv:surface-strain:show` | `buffer: ArrayBuffer` (send it as a transferable), `thresholds?` | `ShowSurfaceStrain` |
 | `o3dv:surface-strain:colors` | `thresholds` | `SetSurfaceStrainColors` |
 | `o3dv:surface-strain:clear` | | `ClearSurfaceStrain` |
+| `o3dv:model-opacity:set` | `opacity: number` in `(0, 1]` | `SetModelOpacity` |
 
 | Website → parent `type` | When |
 |---|---|
@@ -345,6 +370,9 @@ Messages are plain objects. Each command may carry a `requestId`, echoed in its 
   load. If a later show or clear of the same overlay arrives first, it is answered with `ok: false`.
   `colors` without any requested strain fails at once; with a pending strain it gets the strain's
   result, and the new colors are used.
+- **Model opacity.** `o3dv:model-opacity:set` is a setting, not an overlay. It is applied and
+  answered at once, with or without a model, and the website keeps it across model loads without
+  posting another result. Send it again after `o3dv:ready` if the iframe was reloaded.
 - **Toolbar.** The overlays stay through camera moves, measure mode and settings (edge display,
   theme), none of which rebuild the scene.
 
@@ -357,5 +385,7 @@ Messages are plain objects. Each command may carry a `requestId`, echoed in its 
     typo had left unset. Models with edges or lines sit very slightly further back in depth.
   - While edge highlights are shown, the model's meshes use a polygon offset factor of up to
     `ceil(width / 2 · √2) + 1` instead of 1. The factor goes back to 1 when the highlights are cleared.
+- **Model opacity** (`0.0.13`) is non-breaking: the default is `1`, and nothing changes until
+  `SetModelOpacity` or `o3dv:model-opacity:set` is used.
 - **Versioning.** Only artifact version `1` is accepted. A newer artifact version resolves with
   `ok: false`, and it needs a package update. New header keys are ignored.
