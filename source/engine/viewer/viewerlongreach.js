@@ -30,7 +30,7 @@ export class ViewerLongReach
                 color : 0xffffff,
                 side : THREE.DoubleSide,
                 polygonOffset : true,
-                polygonOffsetFactor : 0,
+                polygonOffsetFactor : -1,
                 polygonOffsetUnits : -1
             };
             let material = null;
@@ -66,15 +66,18 @@ export class ViewerLongReach
 
     /**
      * The meshes and the surface strain overlay are pushed back by units 1 and the given factor
-     * when they need a polygon offset. The painted faces take the same factor and units -1, so
-     * they stay in front of the triangles they cover, and stay behind thick edge highlights the
-     * same way the meshes do. Without a polygon offset on the meshes the factor is 0.
+     * when they need a polygon offset. The painted faces take one factor less and units -1, so
+     * they stay in front of the triangles they cover by one depth slope as well as a unit. Drawn by
+     * another shader, the same triangle rasterizes at a slightly different depth, and that
+     * difference grows with the slope of the face: a units offset alone loses to it on faces seen
+     * at a steep angle, which flicker. One factor less still keeps them behind thick edge
+     * highlights, whose factor on the meshes has a margin of one.
      * @param {number} factor Polygon offset factor of the meshes, 0 if they have none.
      */
     SetPolygonOffset (factor)
     {
         for (let threeMesh of this.rootObject.children) {
-            threeMesh.material.polygonOffsetFactor = factor;
+            threeMesh.material.polygonOffsetFactor = factor - 1;
         }
     }
 }

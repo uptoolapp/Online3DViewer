@@ -129,7 +129,7 @@
 <div class="function_container">
 <div id="SetPolygonOffset" class="function_signature">SetPolygonOffset (factor)</div>
 <div class="function_title">Description</div>
-<div class="function_description">The meshes and the surface strain overlay are pushed back by units 1 and the given factor when they need a polygon offset. The painted faces take the same factor and units -1, so they stay in front of the triangles they cover, and stay behind thick edge highlights the same way the meshes do. Without a polygon offset on the meshes the factor is 0.</div>
+<div class="function_description">The meshes and the surface strain overlay are pushed back by units 1 and the given factor when they need a polygon offset. The painted faces take one factor less and units -1, so they stay in front of the triangles they cover by one depth slope as well as a unit. Drawn by another shader, the same triangle rasterizes at a slightly different depth, and that difference grows with the slope of the face: a units offset alone loses to it on faces seen at a steep angle, which flicker. One factor less still keeps them behind thick edge highlights, whose factor on the meshes has a margin of one.</div>
 <div class="function_title">Parameters</div>
 <div class="parameter_header">
 <span class="parameter_name">factor</span>

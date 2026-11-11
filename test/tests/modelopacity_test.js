@@ -270,22 +270,23 @@ describe ('Model Opacity', function () {
         viewer.SetMainObject (CreateMainObject ([[new THREE.MeshPhongMaterial ()]]));
         ShowFaces (viewer);
         let material = FaceMeshes (viewer)[0].material;
-        // The meshes have no polygon offset, the faces still win against the strain overlay.
+        // The meshes have no polygon offset, the faces are still pulled forward by a slope and a unit.
         assert.strictEqual (material.polygonOffset, true);
-        assert.strictEqual (material.polygonOffsetFactor, 0);
+        assert.strictEqual (material.polygonOffsetFactor, -1);
         assert.strictEqual (material.polygonOffsetUnits, -1);
 
-        // Thick edges push the meshes back, the faces follow so the edges stay on top of them.
+        // Thick edges push the meshes back, the faces follow one slope in front of them, so the
+        // edges stay on top of both.
         viewer.SetEdgeHighlights (PrepareEdges ());
         let factor = viewer.mainModel.polygonOffsetFactor;
         assert.ok (factor > 1);
-        assert.strictEqual (material.polygonOffsetFactor, factor);
+        assert.strictEqual (material.polygonOffsetFactor, factor - 1);
         viewer.SetSurfaceStrain (CreateSurfaceStrainMapping (), new OV.SurfaceStrainColorScale (-8, -4));
         assert.strictEqual (StrainMaterials (viewer)[0].polygonOffsetFactor, factor);
         assert.strictEqual (StrainMaterials (viewer)[0].polygonOffsetUnits, 1);
 
         viewer.ClearEdgeHighlights ();
-        assert.strictEqual (material.polygonOffsetFactor, 0);
+        assert.strictEqual (material.polygonOffsetFactor, -1);
     });
 
     it ('Hides the long reach faces of a hidden mesh', function () {

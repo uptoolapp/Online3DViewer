@@ -328,7 +328,8 @@ analysed STEP, unmoved (preconditions 1, 2 and 5 above apply).
 
 The long reach faces are a layer of their own, independent of the surface strain and the edge
 highlights. They are drawn over the model and the surface strain with a polygon offset that pulls
-them just in front of the surface they cover, and edge highlights stay on top of them. With
+them in front of the surface they cover by one depth slope and one unit, so they don't flicker on
+faces seen at a steep angle, and edge highlights stay on top of them. With
 `SetModelOpacity (< 1)` they stay opaque, so the ones behind the faded part show through it.
 Per-mesh `SetMeshesVisibility` hides the faces of a hidden mesh. A new model, `Destroy ()` and
 `GetViewer ().Clear ()` remove them.
