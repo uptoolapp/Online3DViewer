@@ -1,10 +1,12 @@
 import { EdgeHighlightResult, PrepareEdgeHighlights } from '../edgehighlight/edgehighlight.js';
 import { FaceHighlightResult, PrepareFaceHighlights } from '../facehighlight/facehighlight.js';
+import { LongReachParams, LongReachResult, PrepareLongReach, PrepareLongReachHighlights } from '../longreach/longreach.js';
 import { PrepareSurfaceStrain, SurfaceStrainParams, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
 import { CreateSurfaceStrainColorScale } from '../surfacestrain/surfacestraincolor.js';
 
 /**
- * Draws the surface strain, the face highlights and the edge highlights of a model on a
+ * Draws the surface strain, the long reach findings, the face highlights and the edge highlights
+ * of a model on a
  * {@link Viewer}. It is shared by
  * {@link EmbeddedViewer} and the website, see their methods with the same names for details.
  */
@@ -21,6 +23,10 @@ export class ViewerOverlays
         // Bumped whenever a pending ShowSurfaceStrain must not paint anymore: the model changed,
         // the strain was cleared, or the viewer was destroyed.
         this.surfaceStrainRequest = 0;
+        // { mapping, params } of the long reach findings shown, painted as face highlights.
+        this.longReach = null;
+        // As surfaceStrainRequest, for ShowLongReach.
+        this.longReachRequest = 0;
     }
 
     /**
@@ -33,6 +39,8 @@ export class ViewerOverlays
         this.model = model;
         this.surfaceStrainHeader = null;
         this.surfaceStrainRequest += 1;
+        this.longReach = null;
+        this.longReachRequest += 1;
     }
 
     /**
@@ -115,6 +123,94 @@ export class ViewerOverlays
     }
 
     /**
+     * See {@link EmbeddedViewer#ShowLongReach}.
+     * @param {ArrayBuffer} buffer Content of long_reach.bin.
+     * @param {LongReachParams} [params] Parameters.
+     * @returns {Promise<LongReachResult>} Resolves with ok false and a reason on failure.
+     */
+    ShowLongReach (buffer, params)
+    {
+        return new Promise ((resolve) => {
+            if (this.model === null) {
+                let result = new LongReachResult ();
+                result.reason = 'no model is loaded';
+                resolve (result);
+                return;
+            }
+            let model = this.model;
+            let request = this.longReachRequest;
+            params = params || new LongReachParams ();
+            // Let the browser render before the mapping blocks the main thread.
+            setTimeout (() => {
+                let result = new LongReachResult ();
+                if (request !== this.longReachRequest || this.model !== model) {
+                    result.reason = 'the model changed or the long reach was cleared before it was shown';
+                    resolve (result);
+                    return;
+                }
+                try {
+                    let prepared = PrepareLongReach (model, buffer, params);
+                    result = prepared.result;
+                    if (result.ok) {
+                        let painted = this.PaintLongReach (prepared.mapping, params);
+                        result = painted.ok ? result : painted;
+                    }
+                } catch (error) {
+                    result = new LongReachResult ();
+                    result.reason = error.message;
+                }
+                resolve (result);
+            }, 0);
+        });
+    }
+
+    /**
+     * See {@link EmbeddedViewer#SetLongReachParams}.
+     * @param {LongReachParams} params Parameters.
+     * @returns {LongReachResult} On failure the current paint stays.
+     */
+    SetLongReachParams (params)
+    {
+        if (this.longReach === null || this.model === null) {
+            let result = new LongReachResult ();
+            result.reason = 'no long reach is shown';
+            return result;
+        }
+        return this.PaintLongReach (this.longReach.mapping, params);
+    }
+
+    /**
+     * See {@link EmbeddedViewer#ClearLongReach}.
+     */
+    ClearLongReach ()
+    {
+        if (this.longReach !== null) {
+            this.viewer.ClearFaceHighlights ();
+        }
+        this.longReach = null;
+        this.longReachRequest += 1;
+    }
+
+    /**
+     * See {@link EmbeddedViewer#HasLongReach}.
+     * @returns {boolean}
+     */
+    HasLongReach ()
+    {
+        return this.longReach !== null;
+    }
+
+    PaintLongReach (mapping, params)
+    {
+        let prepared = PrepareLongReachHighlights (this.model, mapping, params);
+        if (prepared.result.ok) {
+            this.longReach = { mapping : mapping, params : params };
+            this.viewer.SetFaceHighlights (prepared.prepared);
+        }
+        return prepared.result;
+    }
+
+    /**
      * See {@link EmbeddedViewer#ShowEdgeHighlights}.
      * @param {EdgeHighlight[]} edges Edges with polyline, color and an optional width in pixels.
      * @param {EdgeHighlightParams} [params] Parameters.
@@ -164,6 +260,8 @@ export class ViewerOverlays
         try {
             let prepared = PrepareFaceHighlights (this.model, highlights, params);
             if (prepared.result.ok) {
+                // The long reach findings are painted as face highlights, so these replace them.
+                this.longReach = null;
                 this.viewer.SetFaceHighlights (prepared.prepared);
             }
             return prepared.result;
@@ -180,6 +278,7 @@ export class ViewerOverlays
     ClearFaceHighlights ()
     {
         this.viewer.ClearFaceHighlights ();
+        this.longReach = null;
     }
 
     /**

@@ -41,6 +41,7 @@
 <div id="nav-EmbeddedViewer" class="navigation_item"><a href="Class_EmbeddedViewer.html" target="_self">EmbeddedViewer</a></div>
 <div id="nav-EnvironmentSettings" class="navigation_item"><a href="Class_EnvironmentSettings.html" target="_self">EnvironmentSettings</a></div>
 <div id="nav-InputFile" class="navigation_item"><a href="Class_InputFile.html" target="_self">InputFile</a></div>
+<div id="nav-LongReachMapping" class="navigation_item"><a href="Class_LongReachMapping.html" target="_self">LongReachMapping</a></div>
 <div id="nav-PreparedFaceHighlight" class="navigation_item"><a href="Class_PreparedFaceHighlight.html" target="_self">PreparedFaceHighlight</a></div>
 <div id="nav-RGBAColor" class="navigation_item"><a href="Class_RGBAColor.html" target="_self">RGBAColor</a></div>
 <div id="nav-RGBColor" class="navigation_item"><a href="Class_RGBColor.html" target="_self">RGBColor</a></div>
@@ -56,7 +57,9 @@
 <div class="navigation_title">Functions</div>
 <div id="nav-CheckSurfaceStrainFrameAtScale" class="navigation_item"><a href="Function_CheckSurfaceStrainFrameAtScale.html" target="_self">CheckSurfaceStrainFrameAtScale</a></div>
 <div id="nav-ConvertSurfaceStrainToUnit" class="navigation_item"><a href="Function_ConvertSurfaceStrainToUnit.html" target="_self">ConvertSurfaceStrainToUnit</a></div>
+<div id="nav-CountLongReach" class="navigation_item"><a href="Function_CountLongReach.html" target="_self">CountLongReach</a></div>
 <div id="nav-CreateSurfaceStrainColorScale" class="navigation_item"><a href="Function_CreateSurfaceStrainColorScale.html" target="_self">CreateSurfaceStrainColorScale</a></div>
+<div id="nav-DecodeLongReach" class="navigation_item"><a href="Function_DecodeLongReach.html" target="_self">DecodeLongReach</a></div>
 <div id="nav-DecodeSurfaceStrain" class="navigation_item"><a href="Function_DecodeSurfaceStrain.html" target="_self">DecodeSurfaceStrain</a></div>
 <div id="nav-GetMetreToUnitScale" class="navigation_item"><a href="Function_GetMetreToUnitScale.html" target="_self">GetMetreToUnitScale</a></div>
 <div id="nav-GetModelFaces" class="navigation_item"><a href="Function_GetModelFaces.html" target="_self">GetModelFaces</a></div>
@@ -65,11 +68,15 @@
 <div id="nav-Init3DViewerFromFileList" class="navigation_item"><a href="Function_Init3DViewerFromFileList.html" target="_self">Init3DViewerFromFileList</a></div>
 <div id="nav-Init3DViewerFromUrlList" class="navigation_item"><a href="Function_Init3DViewerFromUrlList.html" target="_self">Init3DViewerFromUrlList</a></div>
 <div id="nav-IsSurfaceStrainSourceFile" class="navigation_item"><a href="Function_IsSurfaceStrainSourceFile.html" target="_self">IsSurfaceStrainSourceFile</a></div>
+<div id="nav-LongReachHighlights" class="navigation_item"><a href="Function_LongReachHighlights.html" target="_self">LongReachHighlights</a></div>
+<div id="nav-MapLongReachToModel" class="navigation_item"><a href="Function_MapLongReachToModel.html" target="_self">MapLongReachToModel</a></div>
 <div id="nav-MapSurfaceStrainToModel" class="navigation_item"><a href="Function_MapSurfaceStrainToModel.html" target="_self">MapSurfaceStrainToModel</a></div>
 <div id="nav-MatchSurfaceStrainFrame" class="navigation_item"><a href="Function_MatchSurfaceStrainFrame.html" target="_self">MatchSurfaceStrainFrame</a></div>
 <div id="nav-MeasureSurfaceFit" class="navigation_item"><a href="Function_MeasureSurfaceFit.html" target="_self">MeasureSurfaceFit</a></div>
 <div id="nav-PrepareEdgeHighlights" class="navigation_item"><a href="Function_PrepareEdgeHighlights.html" target="_self">PrepareEdgeHighlights</a></div>
 <div id="nav-PrepareFaceHighlights" class="navigation_item"><a href="Function_PrepareFaceHighlights.html" target="_self">PrepareFaceHighlights</a></div>
+<div id="nav-PrepareLongReach" class="navigation_item"><a href="Function_PrepareLongReach.html" target="_self">PrepareLongReach</a></div>
+<div id="nav-PrepareLongReachHighlights" class="navigation_item"><a href="Function_PrepareLongReachHighlights.html" target="_self">PrepareLongReachHighlights</a></div>
 <div id="nav-PrepareSurfaceStrain" class="navigation_item"><a href="Function_PrepareSurfaceStrain.html" target="_self">PrepareSurfaceStrain</a></div>
 <div id="nav-RefineTriangles" class="navigation_item"><a href="Function_RefineTriangles.html" target="_self">RefineTriangles</a></div>
 <div id="nav-SetExternalLibLocation" class="navigation_item"><a href="Function_SetExternalLibLocation.html" target="_self">SetExternalLibLocation</a></div>
@@ -320,6 +327,63 @@
 <div class="function_returns">
 <span class="type parameter_type">boolean</span>
 <span class="return_description">True if ShowFaceHighlights painted faces that are still shown.</span>
+</div>
+</div>
+<div class="function_container">
+<div id="ShowLongReach" class="function_signature">ShowLongReach (buffer, params)</div>
+<div class="function_title">Description</div>
+<div class="function_description">Paints the long reach findings of long_reach.bin on the model&#x27;s BREP faces: every face of a group too long under params.limit in params.longReachColor, the faces of deep drilled holes in params.deepHoleColor. The file is mapped onto the model by geometry, so the model must be the STEP the analysis ran on, unmoved. The host fetches the file and passes its content. The promise never rejects: on failure ok is false, reason says why, and nothing is painted. The findings are painted as face highlights, so this replaces faces painted by ShowFaceHighlights. A new model or ClearLongReach before the mapping runs resolves with ok false and paints nothing.</div>
+<div class="function_title">Parameters</div>
+<div class="parameter_header">
+<span class="parameter_name">buffer</span>
+<span class="type parameter_type">ArrayBuffer</span>
+</div>
+<div class="parameter_main">
+<div class="parameter_description">Content of long_reach.bin.</div>
+</div>
+<div class="parameter_header">
+<span class="parameter_name">params</span>
+<span class="type parameter_type">LongReachParams</span>
+<span class="parameter_attributes">(optional)</span>
+</div>
+<div class="parameter_main">
+<div class="parameter_description">Parameters.</div>
+</div>
+<div class="function_title">Returns</div>
+<div class="function_returns">
+<span class="type parameter_type">Promise.&lt;LongReachResult&gt;</span>
+<span class="return_description">With the header and how many faces are too long.</span>
+</div>
+</div>
+<div class="function_container">
+<div id="SetLongReachParams" class="function_signature">SetLongReachParams (params)</div>
+<div class="function_title">Description</div>
+<div class="function_description">Paints the shown long reach findings under new params, for example another limit, without mapping again. On failure the current paint stays.</div>
+<div class="function_title">Parameters</div>
+<div class="parameter_header">
+<span class="parameter_name">params</span>
+<span class="type parameter_type">LongReachParams</span>
+</div>
+<div class="parameter_main">
+<div class="parameter_description">Parameters.</div>
+</div>
+<div class="function_title">Returns</div>
+<div class="function_returns">
+<span class="type parameter_type">LongReachResult</span>
+<span class="return_description">With how many faces are too long under the new limit.</span>
+</div>
+</div>
+<div class="function_container">
+<div id="ClearLongReach" class="function_signature">ClearLongReach ()</div>
+<div class="function_title">Description</div>
+<div class="function_description">Removes the long reach findings painted by ShowLongReach.</div>
+</div>
+<div class="function_container">
+<div id="HasLongReach" class="function_signature">HasLongReach ()</div>
+<div class="function_title">Returns</div>
+<div class="function_returns">
+<span class="type parameter_type">boolean</span>
+<span class="return_description">True if long reach findings are shown.</span>
 </div>
 </div>
 <div class="function_container">

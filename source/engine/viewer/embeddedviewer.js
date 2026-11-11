@@ -282,6 +282,51 @@ export class EmbeddedViewer
     }
 
     /**
+     * Paints the long reach findings of long_reach.bin on the model's BREP faces: every face of a
+     * group too long under params.limit in params.longReachColor, the faces of deep drilled holes
+     * in params.deepHoleColor. The file is mapped onto the model by geometry, so the model must be
+     * the STEP the analysis ran on, unmoved. The host fetches the file and passes its content. The
+     * promise never rejects: on failure ok is false, reason says why, and nothing is painted. The
+     * findings are painted as face highlights, so this replaces faces painted by
+     * ShowFaceHighlights. A new model or ClearLongReach before the mapping runs resolves with ok
+     * false and paints nothing.
+     * @param {ArrayBuffer} buffer Content of long_reach.bin.
+     * @param {LongReachParams} [params] Parameters.
+     * @returns {Promise<LongReachResult>} With the header and how many faces are too long.
+     */
+    ShowLongReach (buffer, params)
+    {
+        return this.overlays.ShowLongReach (buffer, params);
+    }
+
+    /**
+     * Paints the shown long reach findings under new params, for example another limit, without
+     * mapping again. On failure the current paint stays.
+     * @param {LongReachParams} params Parameters.
+     * @returns {LongReachResult} With how many faces are too long under the new limit.
+     */
+    SetLongReachParams (params)
+    {
+        return this.overlays.SetLongReachParams (params);
+    }
+
+    /**
+     * Removes the long reach findings painted by ShowLongReach.
+     */
+    ClearLongReach ()
+    {
+        this.overlays.ClearLongReach ();
+    }
+
+    /**
+     * @returns {boolean} True if long reach findings are shown.
+     */
+    HasLongReach ()
+    {
+        return this.overlays.HasLongReach ();
+    }
+
+    /**
      * Draws coloured polylines on the model, for example the risky edges of a frequency analysis.
      * The coordinates are converted from params.unit (mm by default) to the model's unit and must
      * lie on the model. Each call replaces the shown edges, but only on success, a failed call

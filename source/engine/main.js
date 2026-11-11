@@ -49,6 +49,7 @@ import { ArrayBufferToUtf8String, ArrayBufferToAsciiString, AsciiStringToArrayBu
 import { LoadExternalLibraryFromUrl } from './io/externallibs.js';
 import { GetFileName, GetFileExtension, RequestUrl, ReadFile, TransformFileHostUrls, IsUrl, FileSource, FileFormat } from './io/fileutils.js';
 import { TextWriter } from './io/textwriter.js';
+import { LongReachData, LongReachParams, LongReachCounts, LongReachResult, LongReachMapping, DecodeLongReach, MapLongReachToModel, CountLongReach, LongReachHighlights, PrepareLongReach, PrepareLongReachHighlights, LongReachAccess } from './longreach/longreach.js';
 import { RGBColor, RGBAColor, ColorComponentFromFloat, ColorComponentToFloat, RGBColorFromFloatComponents, SRGBToLinear, LinearToSRGB, IntegerToHexString, RGBColorToHexString, RGBAColorToHexString, HexStringToRGBColor, HexStringToRGBAColor, ArrayToRGBColor, RGBColorIsEqual } from './model/color.js';
 import { GeneratorParams, Generator, GeneratorHelper, GenerateCuboid, GenerateCone, GenerateCylinder, GenerateSphere, GeneratePlatonicSolid } from './model/generator.js';
 import { Line } from './model/line.js';
@@ -244,6 +245,18 @@ export {
     FileSource,
     FileFormat,
     TextWriter,
+    LongReachData,
+    LongReachParams,
+    LongReachCounts,
+    LongReachResult,
+    LongReachMapping,
+    DecodeLongReach,
+    MapLongReachToModel,
+    CountLongReach,
+    LongReachHighlights,
+    PrepareLongReach,
+    PrepareLongReachHighlights,
+    LongReachAccess,
     RGBColor,
     RGBAColor,
     ColorComponentFromFloat,

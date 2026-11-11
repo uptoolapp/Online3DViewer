@@ -1,5 +1,6 @@
 import { IsDefined } from '../engine/core/core.js';
 import { FaceHighlightParams } from '../engine/facehighlight/facehighlight.js';
+import { LongReachParams } from '../engine/longreach/longreach.js';
 import { SurfaceStrainParams } from '../engine/surfacestrain/surfacestrain.js';
 
 export const HostMessageType =
@@ -8,6 +9,9 @@ export const HostMessageType =
     EdgeHighlightsClear : 'o3dv:edge-highlights:clear',
     FaceHighlightsShow : 'o3dv:face-highlights:show',
     FaceHighlightsClear : 'o3dv:face-highlights:clear',
+    LongReachShow : 'o3dv:long-reach:show',
+    LongReachParams : 'o3dv:long-reach:params',
+    LongReachClear : 'o3dv:long-reach:clear',
     SurfaceStrainShow : 'o3dv:surface-strain:show',
     SurfaceStrainColors : 'o3dv:surface-strain:colors',
     SurfaceStrainClear : 'o3dv:surface-strain:clear',
@@ -25,6 +29,21 @@ function CreateSurfaceStrainParams (thresholds)
     return params;
 }
 
+// The host sends only what it chooses: the limit and which findings to show. Colors and the
+// mapping tolerances stay the viewer's.
+function CreateLongReachParams (settings)
+{
+    let params = new LongReachParams ();
+    if (settings !== null && typeof settings === 'object') {
+        for (let key of ['limit', 'showLongReach', 'showDeepHoles']) {
+            if (settings[key] !== undefined) {
+                params[key] = settings[key];
+            }
+        }
+    }
+    return params;
+}
+
 function CreateFaceHighlightParams (expectedFaceCount)
 {
     let params = new FaceHighlightParams ();
@@ -34,7 +53,7 @@ function CreateFaceHighlightParams (expectedFaceCount)
 
 /**
  * Lets the page that embeds the website in an iframe draw the DFM overlays (edge highlights, face
- * highlights and surface strain) over postMessage. It keeps the last requested overlays and draws them again
+ * highlights, long reach and surface strain) over postMessage. It keeps the last requested overlays and draws them again
  * after every model load, so a command may arrive before the model and is applied when it is
  * shown. It also sets the model opacity, a viewer setting that is applied at once and that the
  * viewer keeps through model loads. Only messages from the parent window on the website's own
@@ -58,10 +77,15 @@ export class HostMessageHandler
         this.strain = null;
         // Promise of the surface strain being shown, it resolves with the result.
         this.strainShowing = null;
+        // { buffer, settings }
+        this.longReach = null;
+        // Promise of the long reach being shown, it resolves with the result.
+        this.longReachShowing = null;
         // Commands that arrived without a model, they are answered when it is shown.
         this.pending = {
             edges : [],
             faces : [],
+            longReach : [],
             strain : []
         };
     }
@@ -110,6 +134,13 @@ export class HostMessageHandler
             this.AnswerAll (facesPending, HostMessageType.FaceHighlightsShow, result);
         }
 
+        let longReachPending = this.TakePending ('longReach');
+        if (this.longReach !== null) {
+            this.ShowLongReach ().then ((result) => {
+                this.AnswerAll (longReachPending, HostMessageType.LongReachShow, result);
+            });
+        }
+
         let strainPending = this.TakePending ('strain');
         if (this.strain !== null) {
             this.ShowStrain ().then ((result) => {
@@ -147,6 +178,12 @@ export class HostMessageHandler
             this.OnFaceHighlightsShow (command, message.highlights, message.expectedFaceCount);
         } else if (message.type === HostMessageType.FaceHighlightsClear) {
             this.OnFaceHighlightsClear (command);
+        } else if (message.type === HostMessageType.LongReachShow) {
+            this.OnLongReachShow (command, message.buffer, message.params);
+        } else if (message.type === HostMessageType.LongReachParams) {
+            this.OnLongReachParams (command, message.params);
+        } else if (message.type === HostMessageType.LongReachClear) {
+            this.OnLongReachClear (command);
         } else if (message.type === HostMessageType.SurfaceStrainShow) {
             this.OnSurfaceStrainShow (command, message.buffer, message.thresholds);
         } else if (message.type === HostMessageType.SurfaceStrainColors) {
@@ -196,6 +233,49 @@ export class HostMessageHandler
         this.faces = null;
         this.Supersede ('faces', 'the face highlights were cleared before the model loaded');
         this.overlays.ClearFaceHighlights ();
+        this.Answer (command, { ok : true, reason : null });
+    }
+
+    OnLongReachShow (command, buffer, settings)
+    {
+        this.longReach = {
+            buffer : buffer,
+            settings : settings
+        };
+        if (!this.overlays.HasModel ()) {
+            this.Supersede ('longReach', 'replaced by a later command before the model loaded');
+            this.pending.longReach.push (command);
+            return;
+        }
+        this.ShowLongReach ().then ((result) => {
+            this.Answer (command, result);
+        });
+    }
+
+    OnLongReachParams (command, settings)
+    {
+        if (this.longReach === null) {
+            this.Answer (command, { ok : false, reason : 'no long reach is shown' });
+            return;
+        }
+        this.longReach.settings = settings;
+        if (!this.overlays.HasModel ()) {
+            this.pending.longReach.push (command);
+        } else if (this.longReachShowing !== null) {
+            // ShowLongReach applies the new params when the mapping is done.
+            this.longReachShowing.then ((result) => {
+                this.Answer (command, result);
+            });
+        } else {
+            this.Answer (command, this.overlays.SetLongReachParams (CreateLongReachParams (settings)));
+        }
+    }
+
+    OnLongReachClear (command)
+    {
+        this.longReach = null;
+        this.Supersede ('longReach', 'the long reach was cleared before the model loaded');
+        this.overlays.ClearLongReach ();
         this.Answer (command, { ok : true, reason : null });
     }
 
@@ -252,6 +332,24 @@ export class HostMessageHandler
     ShowFaces ()
     {
         return this.overlays.ShowFaceHighlights (this.faces.highlights, CreateFaceHighlightParams (this.faces.expectedFaceCount));
+    }
+
+    ShowLongReach ()
+    {
+        let longReach = this.longReach;
+        let settings = longReach.settings;
+        let showing = this.overlays.ShowLongReach (longReach.buffer, CreateLongReachParams (settings)).then ((result) => {
+            if (this.longReachShowing === showing) {
+                this.longReachShowing = null;
+            }
+            // The params changed while the mapping ran.
+            if (result.ok && this.longReach === longReach && longReach.settings !== settings) {
+                result = this.overlays.SetLongReachParams (CreateLongReachParams (longReach.settings));
+            }
+            return result;
+        });
+        this.longReachShowing = showing;
+        return showing;
     }
 
     ShowStrain ()
