@@ -1,3 +1,5 @@
+import { ParseHexColor } from '../analysis/analysiscolor.js';
+
 // Colouring of log10 strain. There are two kinds of scale:
 // - SurfaceStrainColorScale: continuous and sequential (viridis), never a rainbow. By default the
 //   range is fixed across parts, 1 µε to 50 µε, so parts and modes compare on one scale.
@@ -78,19 +80,6 @@ export class SurfaceStrainColorScale
 
 export const SurfaceStrainMaxThresholdCount = 16;
 export const SurfaceStrainDefaultBelowThresholdColor = '#c8c8c8';
-
-export function ParseHexColor (value, what)
-{
-    if (typeof value !== 'string' || !/^#?[0-9a-fA-F]{6}$/.test (value)) {
-        throw new Error (what + ' must be a hex color like #ff0000, got ' + JSON.stringify (value));
-    }
-    let hex = value.charAt (0) === '#' ? value.substring (1) : value;
-    return [
-        parseInt (hex.substring (0, 2), 16) / 255.0,
-        parseInt (hex.substring (2, 4), 16) / 255.0,
-        parseInt (hex.substring (4, 6), 16) / 255.0
-    ];
-}
 
 export class SurfaceStrainThreshold
 {

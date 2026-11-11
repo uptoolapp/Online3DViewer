@@ -247,49 +247,13 @@ export class EmbeddedViewer
     }
 
     /**
-     * Paints whole BREP faces of the model, for example the faces of a part that need too long a
-     * tool. A face is named by its index: the BREP faces of every mesh instance in model order, each
-     * mesh's faces in the order of the STEP's TopExp_Explorer, a face that didn't triangulate keeps
-     * its index. Only a model read from STEP, IGES or BREP has faces. Pass the number of faces the
-     * host knows of as params.expectedFaceCount, a model with another count is refused. Each call
-     * replaces the painted faces, but only on success, a failed call keeps them. The faces are
-     * painted over the surface strain, stay opaque when the model is faded, and are cleared when a
-     * new model starts loading.
-     * @param {FaceHighlight[]} highlights Lists of face indices with a color, a face may be in one
-     * highlight only. An empty list clears the faces.
-     * @param {FaceHighlightParams} [params] Parameters.
-     * @returns {FaceHighlightResult} On failure ok is false and reason says why.
-     */
-    ShowFaceHighlights (highlights, params)
-    {
-        return this.overlays.ShowFaceHighlights (highlights, params);
-    }
-
-    /**
-     * Removes the faces painted by ShowFaceHighlights.
-     */
-    ClearFaceHighlights ()
-    {
-        this.overlays.ClearFaceHighlights ();
-    }
-
-    /**
-     * @returns {boolean} True if ShowFaceHighlights painted faces that are still shown.
-     */
-    HasFaceHighlights ()
-    {
-        return this.overlays.HasFaceHighlights ();
-    }
-
-    /**
      * Paints the long reach findings of long_reach.bin on the model's BREP faces: every face of a
-     * group too long under params.limit in params.longReachColor, the faces of deep drilled holes
-     * in params.deepHoleColor. The file is mapped onto the model by geometry, so the model must be
-     * the STEP the analysis ran on, unmoved. The host fetches the file and passes its content. The
-     * promise never rejects: on failure ok is false, reason says why, and nothing is painted. The
-     * findings are painted as face highlights, so this replaces faces painted by
-     * ShowFaceHighlights. A new model or ClearLongReach before the mapping runs resolves with ok
-     * false and paints nothing.
+     * group too long under params.limit in params.color. The file is mapped onto the model by
+     * geometry, so the model must be the STEP the analysis ran on, unmoved. The host fetches the
+     * file and passes its content. The promise never rejects: on failure ok is false, reason says
+     * why, and the previous paint stays. A new model or ClearLongReach before the mapping runs
+     * resolves with ok false and paints nothing. The faces are painted over the surface strain,
+     * stay opaque when the model is faded, and are cleared when a new model starts loading.
      * @param {ArrayBuffer} buffer Content of long_reach.bin.
      * @param {LongReachParams} [params] Parameters.
      * @returns {Promise<LongReachResult>} With the header and how many faces are too long.
@@ -301,7 +265,8 @@ export class EmbeddedViewer
 
     /**
      * Paints the shown long reach findings under new params, for example another limit, without
-     * mapping again. On failure the current paint stays.
+     * mapping again or collecting the faces again, so a slider can call it on every move. Only
+     * limit, showLongReach and color are used. On failure the current paint stays.
      * @param {LongReachParams} params Parameters.
      * @returns {LongReachResult} With how many faces are too long under the new limit.
      */
@@ -353,7 +318,7 @@ export class EmbeddedViewer
     /**
      * Fades the model, the surface strain and the highlighted meshes, and draws the edge
      * highlights on top of them, so the edges behind the model show through it. Faces painted by
-     * ShowFaceHighlights stay opaque, so they show through the model too. It is a setting,
+     * ShowLongReach stay opaque, so they show through the model too. It is a setting,
      * not an overlay: it may be called before a model loads, and it stays through model loads and
      * surface strain recolors. See {@link Viewer#SetModelOpacity}.
      * @param {number} opacity In (0, 1], 1 shows the model solid.

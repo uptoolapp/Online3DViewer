@@ -48,7 +48,6 @@ function CreateFakeOverlays ()
         model : null,
         calls : [],
         edgeResult : { ok : true, reason : null, edgeCount : 1 },
-        faceResult : { ok : true, reason : null, faceCount : 1 },
         strainResult : { ok : true, reason : null },
         longReachResult : { ok : true, reason : null },
         colorsResult : { ok : true, reason : null, colorScale : {} },
@@ -62,22 +61,15 @@ function CreateFakeOverlays ()
         ClearEdgeHighlights () {
             this.calls.push (['ClearEdgeHighlights']);
         },
-        ShowFaceHighlights (highlights, params) {
-            this.calls.push (['ShowFaceHighlights', highlights, params.expectedFaceCount]);
-            return this.faceResult;
-        },
-        ClearFaceHighlights () {
-            this.calls.push (['ClearFaceHighlights']);
-        },
         ShowLongReach (buffer, params) {
-            this.calls.push (['ShowLongReach', buffer, params.limit, params.showDeepHoles]);
+            this.calls.push (['ShowLongReach', buffer, params.limit, params.showLongReach, params.color]);
             let result = this.longReachResult;
             return new Promise ((resolve) => {
                 setTimeout (() => resolve (result), 0);
             });
         },
         SetLongReachParams (params) {
-            this.calls.push (['SetLongReachParams', params.limit]);
+            this.calls.push (['SetLongReachParams', params.limit, params.showLongReach]);
             return { ok : true, reason : null };
         },
         ClearLongReach () {
@@ -140,7 +132,6 @@ function Results (env)
 }
 
 const Edges = [{ polyline : [[0, 0, 0], [1, 0, 0]], color : '#ff0000' }];
-const Faces = [{ faces : [0, 3], color : '#7c3aed' }];
 const Thresholds = [{ color : '#ff0000', strain : 20.0 }, { color : '#ffff00', strain : 5.0 }];
 const OtherThresholds = [{ color : '#ff0000', strain : 30.0 }];
 
@@ -323,13 +314,14 @@ describe ('Host Messages Long Reach', function () {
     it ('Sends the long reach commands to the viewer', async function () {
         let env = CreateHandler ();
         LoadModel (env);
-        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4, showDeepHoles : false }, requestId : 1 });
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4, showLongReach : false, color : '#ff0000' }, requestId : 1 });
         await Flush ();
         env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 2 });
         env.frameWindow.Send ({ type : HostMessageType.LongReachClear, requestId : 3 });
         assert.deepStrictEqual (env.overlays.calls, [
-            ['ShowLongReach', Buffer, 4, false],
-            ['SetLongReachParams', 6],
+            // The color stays the viewer's.
+            ['ShowLongReach', Buffer, 4, false, '#7c3aed'],
+            ['SetLongReachParams', 6, true],
             ['ClearLongReach']
         ]);
         assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.command, result.ok]), [
@@ -346,7 +338,7 @@ describe ('Host Messages Long Reach', function () {
         LoadModel (env);
         await Flush ();
         assert.deepStrictEqual ([env.overlays.calls, Results (env).map ((result) => [result.requestId, result.ok])], [
-            [['ShowLongReach', Buffer, 4, true]],
+            [['ShowLongReach', Buffer, 4, true, '#7c3aed']],
             [[1, true]]
         ]);
     });
@@ -357,7 +349,32 @@ describe ('Host Messages Long Reach', function () {
         env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4 }, requestId : 1 });
         env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 2 });
         await Flush ();
-        assert.deepStrictEqual (env.overlays.calls, [['ShowLongReach', Buffer, 4, true], ['SetLongReachParams', 6]]);
+        assert.deepStrictEqual (env.overlays.calls, [['ShowLongReach', Buffer, 4, true, '#7c3aed'], ['SetLongReachParams', 6, true]]);
+    });
+
+    it ('Answers a long reach cleared before the model, and reapplies the latest on every load', async function () {
+        let env = CreateHandler ();
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, requestId : 1 });
+        env.frameWindow.Send ({ type : HostMessageType.LongReachClear, requestId : 2 });
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4 }, requestId : 3 });
+        LoadModel (env);
+        await Flush ();
+        env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 4 });
+        LoadModel (env);
+        await Flush ();
+        assert.deepStrictEqual (env.overlays.calls, [
+            ['ClearLongReach'],
+            ['ShowLongReach', Buffer, 4, true, '#7c3aed'],
+            ['SetLongReachParams', 6, true],
+            ['ShowLongReach', Buffer, 6, true, '#7c3aed']
+        ]);
+        assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.ok, result.reason]), [
+            [1, false, 'the long reach was cleared before the model loaded'],
+            [2, true, null],
+            [3, true, null],
+            [4, true, null],
+            [null, true, null]
+        ]);
     });
 
     it ('Refuses params with no long reach shown', function () {
@@ -365,71 +382,6 @@ describe ('Host Messages Long Reach', function () {
         LoadModel (env);
         env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 1 });
         assert.deepStrictEqual (Results (env).map ((result) => [result.ok, result.reason]), [[false, 'no long reach is shown']]);
-    });
-});
-
-describe ('Host Messages Face Highlights', function () {
-    it ('Sends the face commands to the viewer', function () {
-        let env = CreateHandler ();
-        LoadModel (env);
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsShow, highlights : Faces, expectedFaceCount : 12, requestId : 1 });
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsShow, highlights : Faces, requestId : 2 });
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsClear, requestId : 3 });
-        assert.deepStrictEqual (env.overlays.calls, [
-            ['ShowFaceHighlights', Faces, 12],
-            ['ShowFaceHighlights', Faces, null],
-            ['ClearFaceHighlights']
-        ]);
-        assert.deepStrictEqual (Results (env), [
-            { type : HostMessageType.Result, requestId : 1, command : 'o3dv:face-highlights:show', ok : true, reason : null },
-            { type : HostMessageType.Result, requestId : 2, command : 'o3dv:face-highlights:show', ok : true, reason : null },
-            { type : HostMessageType.Result, requestId : 3, command : 'o3dv:face-highlights:clear', ok : true, reason : null }
-        ]);
-    });
-
-    it ('Shows faces sent before the model on load, and again on the next load', function () {
-        let env = CreateHandler ();
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsShow, highlights : [], requestId : 1 });
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsShow, highlights : Faces, expectedFaceCount : 12, requestId : 2 });
-        assert.deepStrictEqual (env.overlays.calls, []);
-        assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.ok, result.reason]), [
-            [1, false, 'replaced by a later command before the model loaded']
-        ]);
-
-        LoadModel (env);
-        assert.deepStrictEqual (env.overlays.calls, [['ShowFaceHighlights', Faces, 12]]);
-        assert.deepStrictEqual (Results (env).slice (1).map ((result) => [result.requestId, result.ok]), [[2, true]]);
-
-        env.overlays.model = null;
-        LoadModel (env);
-        assert.deepStrictEqual (env.overlays.calls.slice (1), [['ShowFaceHighlights', Faces, 12]]);
-        assert.deepStrictEqual (Results (env).slice (2), [
-            { type : HostMessageType.Result, requestId : null, command : 'o3dv:face-highlights:show', ok : true, reason : null }
-        ]);
-    });
-
-    it ('Answers a pending show cleared before the model', function () {
-        let env = CreateHandler ();
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsShow, highlights : Faces, requestId : 1 });
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsClear, requestId : 2 });
-        assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.ok, result.reason]), [
-            [1, false, 'the face highlights were cleared before the model loaded'],
-            [2, true, null]
-        ]);
-        LoadModel (env);
-        assert.deepStrictEqual (env.overlays.calls, [['ClearFaceHighlights']]);
-        assert.strictEqual (Results (env).length, 2);
-    });
-
-    it ('Posts the reason of a refused show', function () {
-        let env = CreateHandler ();
-        LoadModel (env);
-        env.overlays.faceResult = { ok : false, reason : 'the model has 6 faces, expected 7, the faces may belong to another part', faceCount : 0 };
-        env.frameWindow.Send ({ type : HostMessageType.FaceHighlightsShow, highlights : Faces, expectedFaceCount : 7, requestId : 1 });
-        assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.ok, result.reason]), [
-            [1, false, 'the model has 6 faces, expected 7, the faces may belong to another part']
-        ]);
-        assert.ok (!env.overlays.calls.some ((call) => call[0].startsWith ('Clear')));
     });
 });
 

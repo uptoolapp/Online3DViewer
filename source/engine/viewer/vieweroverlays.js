@@ -1,14 +1,12 @@
 import { EdgeHighlightResult, PrepareEdgeHighlights } from '../edgehighlight/edgehighlight.js';
-import { FaceHighlightResult, PrepareFaceHighlights } from '../facehighlight/facehighlight.js';
-import { LongReachParams, LongReachResult, PrepareLongReach, PrepareLongReachHighlights } from '../longreach/longreach.js';
+import { CountLongReach, LongReachParams, LongReachResult, ParseLongReachDisplay, PrepareLongReach } from '../longreach/longreach.js';
 import { PrepareSurfaceStrain, SurfaceStrainParams, SurfaceStrainResult } from '../surfacestrain/surfacestrain.js';
 import { CreateSurfaceStrainColorScale } from '../surfacestrain/surfacestraincolor.js';
 
 /**
- * Draws the surface strain, the long reach findings, the face highlights and the edge highlights
- * of a model on a
- * {@link Viewer}. It is shared by
- * {@link EmbeddedViewer} and the website, see their methods with the same names for details.
+ * Draws the surface strain, the long reach findings and the edge highlights of a model on a
+ * {@link Viewer}. It is shared by {@link EmbeddedViewer} and the website, see their methods with
+ * the same names for details.
  */
 export class ViewerOverlays
 {
@@ -20,13 +18,14 @@ export class ViewerOverlays
         this.viewer = viewer;
         this.model = null;
         this.surfaceStrainHeader = null;
-        // Bumped whenever a pending ShowSurfaceStrain must not paint anymore: the model changed,
-        // the strain was cleared, or the viewer was destroyed.
-        this.surfaceStrainRequest = 0;
-        // { mapping, params } of the long reach findings shown, painted as face highlights.
-        this.longReach = null;
-        // As surfaceStrainRequest, for ShowLongReach.
-        this.longReachRequest = 0;
+        // The decoded file of the long reach findings shown.
+        this.longReachData = null;
+        // Per overlay that maps on the model, bumped whenever its pending show must not paint
+        // anymore: the model changed, the overlay was cleared, or the viewer was destroyed.
+        this.requests = {
+            surfaceStrain : 0,
+            longReach : 0
+        };
     }
 
     /**
@@ -38,9 +37,10 @@ export class ViewerOverlays
     {
         this.model = model;
         this.surfaceStrainHeader = null;
-        this.surfaceStrainRequest += 1;
-        this.longReach = null;
-        this.longReachRequest += 1;
+        this.longReachData = null;
+        for (let kind of Object.keys (this.requests)) {
+            this.requests[kind] += 1;
+        }
     }
 
     /**
@@ -52,6 +52,44 @@ export class ViewerOverlays
     }
 
     /**
+     * Runs an overlay's mapping on the model once the browser had a chance to render, because the
+     * mapping blocks the main thread. The promise never rejects: a missing model, a model change
+     * or a clear of the overlay in the meantime, and an exception resolve with ok false.
+     * @param {string} kind Key of this.requests.
+     * @param {string} name Name of the overlay in the reasons.
+     * @param {Function} ResultClass Result class, with ok and reason.
+     * @param {Function} run Gets the model and returns the result.
+     * @returns {Promise}
+     */
+    RunMapping (kind, name, ResultClass, run)
+    {
+        return new Promise ((resolve) => {
+            let Fail = (reason) => {
+                let result = new ResultClass ();
+                result.reason = reason;
+                resolve (result);
+            };
+            if (this.model === null) {
+                Fail ('no model is loaded');
+                return;
+            }
+            let model = this.model;
+            let request = this.requests[kind];
+            setTimeout (() => {
+                if (request !== this.requests[kind] || this.model !== model) {
+                    Fail ('the model changed or the ' + name + ' was cleared before it was shown');
+                    return;
+                }
+                try {
+                    resolve (run (model));
+                } catch (error) {
+                    Fail (error.message);
+                }
+            }, 0);
+        });
+    }
+
+    /**
      * See {@link EmbeddedViewer#ShowSurfaceStrain}.
      * @param {ArrayBuffer} buffer Content of surface_strain.bin.
      * @param {SurfaceStrainParams} [params] Parameters.
@@ -59,35 +97,13 @@ export class ViewerOverlays
      */
     ShowSurfaceStrain (buffer, params)
     {
-        return new Promise ((resolve) => {
-            if (this.model === null) {
-                let result = new SurfaceStrainResult ();
-                result.reason = 'no model is loaded';
-                resolve (result);
-                return;
+        return this.RunMapping ('surfaceStrain', 'surface strain', SurfaceStrainResult, (model) => {
+            let result = PrepareSurfaceStrain (model, buffer, params);
+            if (result.ok) {
+                this.surfaceStrainHeader = result.header;
+                this.viewer.SetSurfaceStrain (result.mapping, result.colorScale);
             }
-            let model = this.model;
-            let request = this.surfaceStrainRequest;
-            // Let the browser render before the mapping blocks the main thread.
-            setTimeout (() => {
-                let result = new SurfaceStrainResult ();
-                if (request !== this.surfaceStrainRequest || this.model !== model) {
-                    result.reason = 'the model changed or the surface strain was cleared before it was shown';
-                    resolve (result);
-                    return;
-                }
-                try {
-                    result = PrepareSurfaceStrain (model, buffer, params);
-                    if (result.ok) {
-                        this.surfaceStrainHeader = result.header;
-                        this.viewer.SetSurfaceStrain (result.mapping, result.colorScale);
-                    }
-                } catch (error) {
-                    result = new SurfaceStrainResult ();
-                    result.reason = error.message;
-                }
-                resolve (result);
-            }, 0);
+            return result;
         });
     }
 
@@ -119,7 +135,7 @@ export class ViewerOverlays
     {
         this.viewer.ClearSurfaceStrain ();
         this.surfaceStrainHeader = null;
-        this.surfaceStrainRequest += 1;
+        this.requests.surfaceStrain += 1;
     }
 
     /**
@@ -130,37 +146,15 @@ export class ViewerOverlays
      */
     ShowLongReach (buffer, params)
     {
-        return new Promise ((resolve) => {
-            if (this.model === null) {
-                let result = new LongReachResult ();
-                result.reason = 'no model is loaded';
-                resolve (result);
-                return;
+        params = params || new LongReachParams ();
+        return this.RunMapping ('longReach', 'long reach', LongReachResult, (model) => {
+            let prepared = PrepareLongReach (model, buffer, params);
+            if (prepared.result.ok) {
+                let display = ParseLongReachDisplay (params);
+                this.longReachData = prepared.mapping.data;
+                this.viewer.SetLongReach (prepared.prepared, display.limit, display.show, display.color);
             }
-            let model = this.model;
-            let request = this.longReachRequest;
-            params = params || new LongReachParams ();
-            // Let the browser render before the mapping blocks the main thread.
-            setTimeout (() => {
-                let result = new LongReachResult ();
-                if (request !== this.longReachRequest || this.model !== model) {
-                    result.reason = 'the model changed or the long reach was cleared before it was shown';
-                    resolve (result);
-                    return;
-                }
-                try {
-                    let prepared = PrepareLongReach (model, buffer, params);
-                    result = prepared.result;
-                    if (result.ok) {
-                        let painted = this.PaintLongReach (prepared.mapping, params);
-                        result = painted.ok ? result : painted;
-                    }
-                } catch (error) {
-                    result = new LongReachResult ();
-                    result.reason = error.message;
-                }
-                resolve (result);
-            }, 0);
+            return prepared.result;
         });
     }
 
@@ -171,12 +165,23 @@ export class ViewerOverlays
      */
     SetLongReachParams (params)
     {
-        if (this.longReach === null || this.model === null) {
-            let result = new LongReachResult ();
+        let result = new LongReachResult ();
+        if (this.longReachData === null || !this.viewer.HasLongReach ()) {
             result.reason = 'no long reach is shown';
             return result;
         }
-        return this.PaintLongReach (this.longReach.mapping, params);
+        let display = null;
+        try {
+            display = ParseLongReachDisplay (params);
+        } catch (error) {
+            result.reason = error.message;
+            return result;
+        }
+        this.viewer.SetLongReachDisplay (display.limit, display.show, display.color);
+        result.ok = true;
+        result.header = this.longReachData.header;
+        result.counts = CountLongReach (this.longReachData, display.limit);
+        return result;
     }
 
     /**
@@ -184,11 +189,9 @@ export class ViewerOverlays
      */
     ClearLongReach ()
     {
-        if (this.longReach !== null) {
-            this.viewer.ClearFaceHighlights ();
-        }
-        this.longReach = null;
-        this.longReachRequest += 1;
+        this.viewer.ClearLongReach ();
+        this.longReachData = null;
+        this.requests.longReach += 1;
     }
 
     /**
@@ -197,17 +200,7 @@ export class ViewerOverlays
      */
     HasLongReach ()
     {
-        return this.longReach !== null;
-    }
-
-    PaintLongReach (mapping, params)
-    {
-        let prepared = PrepareLongReachHighlights (this.model, mapping, params);
-        if (prepared.result.ok) {
-            this.longReach = { mapping : mapping, params : params };
-            this.viewer.SetFaceHighlights (prepared.prepared);
-        }
-        return prepared.result;
+        return this.viewer.HasLongReach ();
     }
 
     /**
@@ -242,52 +235,6 @@ export class ViewerOverlays
     ClearEdgeHighlights ()
     {
         this.viewer.ClearEdgeHighlights ();
-    }
-
-    /**
-     * See {@link EmbeddedViewer#ShowFaceHighlights}.
-     * @param {FaceHighlight[]} highlights Lists of face indices with a color.
-     * @param {FaceHighlightParams} [params] Parameters.
-     * @returns {FaceHighlightResult} On failure ok is false and reason says why.
-     */
-    ShowFaceHighlights (highlights, params)
-    {
-        if (this.model === null) {
-            let result = new FaceHighlightResult ();
-            result.reason = 'no model is loaded';
-            return result;
-        }
-        try {
-            let prepared = PrepareFaceHighlights (this.model, highlights, params);
-            if (prepared.result.ok) {
-                // The long reach findings are painted as face highlights, so these replace them.
-                this.longReach = null;
-                this.viewer.SetFaceHighlights (prepared.prepared);
-            }
-            return prepared.result;
-        } catch (error) {
-            let result = new FaceHighlightResult ();
-            result.reason = error.message;
-            return result;
-        }
-    }
-
-    /**
-     * See {@link EmbeddedViewer#ClearFaceHighlights}.
-     */
-    ClearFaceHighlights ()
-    {
-        this.viewer.ClearFaceHighlights ();
-        this.longReach = null;
-    }
-
-    /**
-     * See {@link EmbeddedViewer#HasFaceHighlights}.
-     * @returns {boolean}
-     */
-    HasFaceHighlights ()
-    {
-        return this.viewer.HasFaceHighlights ();
     }
 
     /**

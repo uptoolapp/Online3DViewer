@@ -89,7 +89,7 @@ function EncodeLongReach (options)
 }
 
 // The box as the analysis sees it, in metres: its top in a group too long above 5 diameters, its
-// right side in a deep hole. `shift` moves the file's box, `options` overrides the findings.
+// right side in a deep hole, which the viewer doesn't paint. `shift` moves the file's box, `options` overrides the findings.
 function BoxFile (options = {}, shift = 0.0)
 {
     let mesh = CreateBoxMesh ();
@@ -137,10 +137,14 @@ function Prepare (buffer, params)
     return OV.PrepareLongReach (CreateBoxModel (), buffer, params || Params ());
 }
 
-// The model faces each highlight paints, and its color.
-function Painted (mapping, params)
+// The x of every vertex the first `count` indices draw.
+function DrawnX (prepared, count)
 {
-    return OV.LongReachHighlights (mapping, params).map ((highlight) => [highlight.faces, highlight.color]);
+    let values = new Set ();
+    for (let i = 0; i < count; i++) {
+        values.add (prepared.positions[prepared.indices[i] * 3]);
+    }
+    return Array.from (values).sort ((a, b) => a - b);
 }
 
 describe ('Long Reach', function () {
@@ -165,24 +169,37 @@ describe ('Long Reach', function () {
         assert.deepStrictEqual (Array.from (prepared.mapping.fileFaceOfModelFace), FileFaceOfModelFace);
     });
 
-    it ('Paints the faces of a group too long under the limit, and deep holes', function () {
-        let prepared = Prepare (BoxFile ());
-        assert.deepStrictEqual (Painted (prepared.mapping, Params ({ limit : 3.0 })), [[[Top], '#7c3aed'], [[Right], '#2563eb']]);
+    it ('Collects the faces of groups, not of deep holes', function () {
+        let prepared = Prepare (BoxFile ()).prepared;
+        assert.deepStrictEqual (
+            [prepared.length, prepared[0].indices.length, Array.from (prepared[0].faceLengthToDiameter)],
+            [1, 6, [5]]
+        );
     });
 
-    it ('Paints no group under a limit above its length to diameter', function () {
-        let prepared = Prepare (BoxFile ());
-        assert.deepStrictEqual (Painted (prepared.mapping, Params ({ limit : 6.0 })), [[[Right], '#2563eb']]);
+    it ('Draws the faces of a group too long under the limit', function () {
+        let instance = Prepare (BoxFile ()).prepared[0];
+        assert.deepStrictEqual ([instance.IndexCount (3.0), instance.IndexCount (5.0), instance.IndexCount (6.0)], [6, 0, 0]);
     });
 
-    it ('Leaves out the findings switched off', function () {
-        let prepared = Prepare (BoxFile ());
-        assert.deepStrictEqual (Painted (prepared.mapping, Params ({ showDeepHoles : false })), [[[Top], '#7c3aed']]);
+    it ('Orders the faces by length to diameter, so a limit draws a prefix', function () {
+        let faceGroup = new Array (6).fill (-1);
+        faceGroup[FileFaceOfModelFace[Top]] = 0;
+        faceGroup[FileFaceOfModelFace[Right]] = 1;
+        let instance = Prepare (BoxFile ({
+            groups : [{ face_count : 1, length_to_diameter : 5.0 }, { face_count : 1, length_to_diameter : 8.0 }],
+            faceGroup : faceGroup
+        })).prepared[0];
+        // The right side at x = 100 first, then the top too.
+        assert.deepStrictEqual (
+            [DrawnX (instance, instance.IndexCount (6.0)), DrawnX (instance, instance.IndexCount (3.0))],
+            [[100], [0, 100]]
+        );
     });
 
-    it ('Counts the faces the file says are too long, and in deep holes', function () {
+    it ('Counts the faces the file says are too long', function () {
         let counts = Prepare (BoxFile ({ groups : [{ face_count : 4, length_to_diameter : 5.0 }] })).result.counts;
-        assert.deepStrictEqual ([counts.tooLongFaces, counts.tooLongGroups, counts.deepHoleFaces], [4, 1, 1]);
+        assert.deepStrictEqual (counts, Object.assign (new OV.LongReachCounts (), { tooLongFaces : 4, tooLongGroups : 1 }));
     });
 
     it ('Refuses a file of a part in another place', function () {
@@ -192,19 +209,32 @@ describe ('Long Reach', function () {
     it ('Refuses a limit that is not a positive number', function () {
         assert.match (Prepare (BoxFile (), Params ({ limit : 0 })).result.reason, /limit must be a positive number/);
     });
+
+    it ('Refuses a color that is not hex', function () {
+        assert.match (Prepare (BoxFile (), Params ({ color : 'violet' })).result.reason, /color must be a hex color/);
+    });
 });
 
 describe ('Long Reach Overlays', function () {
     function CreateFakeViewer ()
     {
         return {
-            painted : [],
-            clears : 0,
-            SetFaceHighlights (prepared) {
-                this.painted.push (prepared);
+            shown : [],
+            displays : [],
+            longReach : null,
+            SetLongReach (prepared, limit, show, color) {
+                this.longReach = prepared;
+                this.shown.push (prepared);
+                this.displays.push ([limit, show, color]);
             },
-            ClearFaceHighlights () {
-                this.clears += 1;
+            SetLongReachDisplay (limit, show, color) {
+                this.displays.push ([limit, show, color]);
+            },
+            HasLongReach () {
+                return this.longReach !== null;
+            },
+            ClearLongReach () {
+                this.longReach = null;
             }
         };
     }
@@ -217,25 +247,34 @@ describe ('Long Reach Overlays', function () {
         return { viewer, overlays };
     }
 
+    const Violet = [0x7c / 255, 0x3a / 255, 0xed / 255];
+
     it ('Paints the findings it maps', async function () {
         let { viewer, overlays } = CreateOverlays ();
         let result = await overlays.ShowLongReach (BoxFile (), Params ());
-        assert.deepStrictEqual ([result.ok, viewer.painted.length, overlays.HasLongReach ()], [true, 1, true]);
+        assert.deepStrictEqual ([result.ok, viewer.shown.length, viewer.displays, overlays.HasLongReach ()], [true, 1, [[3.0, true, Violet]], true]);
     });
 
-    it ('Repaints under a new limit without mapping again', async function () {
+    it ('Repaints under new params without collecting the faces again', async function () {
         let { viewer, overlays } = CreateOverlays ();
         await overlays.ShowLongReach (BoxFile (), Params ());
-        let mapping = overlays.longReach.mapping;
-        let result = overlays.SetLongReachParams (Params ({ limit : 6.0 }));
-        assert.deepStrictEqual ([result.counts.tooLongFaces, viewer.painted.length, overlays.longReach.mapping === mapping], [0, 2, true]);
+        let result = overlays.SetLongReachParams (Params ({ limit : 6.0, showLongReach : false }));
+        assert.deepStrictEqual (
+            [result.counts.tooLongFaces, viewer.shown.length, viewer.displays[1]],
+            [0, 1, [6.0, false, Violet]]
+        );
     });
 
     it ('Keeps the paint when new params are refused', async function () {
         let { viewer, overlays } = CreateOverlays ();
         await overlays.ShowLongReach (BoxFile (), Params ());
         let result = overlays.SetLongReachParams (Params ({ limit : -1 }));
-        assert.deepStrictEqual ([result.ok, viewer.painted.length], [false, 1]);
+        assert.deepStrictEqual ([result.ok, viewer.displays.length], [false, 1]);
+    });
+
+    it ('Refuses new params when nothing is shown', function () {
+        let { overlays } = CreateOverlays ();
+        assert.strictEqual (overlays.SetLongReachParams (Params ()).reason, 'no long reach is shown');
     });
 
     it ('Doesn\'t paint after the model changed', async function () {
@@ -243,14 +282,22 @@ describe ('Long Reach Overlays', function () {
         let showing = overlays.ShowLongReach (BoxFile (), Params ());
         overlays.SetModel (CreateBoxModel ());
         let result = await showing;
-        assert.deepStrictEqual ([result.ok, viewer.painted.length], [false, 0]);
+        assert.deepStrictEqual ([result.ok, viewer.shown.length], [false, 0]);
+    });
+
+    it ('Doesn\'t paint after it was cleared', async function () {
+        let { viewer, overlays } = CreateOverlays ();
+        let showing = overlays.ShowLongReach (BoxFile (), Params ());
+        overlays.ClearLongReach ();
+        let result = await showing;
+        assert.deepStrictEqual ([result.reason, viewer.shown.length], ['the model changed or the long reach was cleared before it was shown', 0]);
     });
 
     it ('Clears what it painted', async function () {
-        let { viewer, overlays } = CreateOverlays ();
+        let { overlays } = CreateOverlays ();
         await overlays.ShowLongReach (BoxFile (), Params ());
         overlays.ClearLongReach ();
-        assert.deepStrictEqual ([viewer.clears, overlays.HasLongReach ()], [1, false]);
+        assert.deepStrictEqual ([overlays.HasLongReach (), overlays.SetLongReachParams (Params ()).ok], [false, false]);
     });
 
     it ('Fails without a model', async function () {

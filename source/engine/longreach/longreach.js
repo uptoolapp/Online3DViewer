@@ -1,17 +1,16 @@
-import { GetBoundingBox } from '../model/modelutils.js';
+import { ParseHexColor } from '../analysis/analysiscolor.js';
+import { CollectFaceGeometry, GetModelFaces } from '../analysis/analysisfaces.js';
+import { MatchAnalysisFrame } from '../analysis/analysisframe.js';
+import { GetMetreToUnitScale } from '../analysis/analysisunits.js';
 import { TriangleGrid, TriangleGridHit } from '../geometry/trianglegrid.js';
-import { FaceHighlight, GetModelFaces, PrepareFaceHighlights } from '../facehighlight/facehighlight.js';
-import { ParseHexColor } from '../surfacestrain/surfacestraincolor.js';
-import { MatchSurfaceStrainFrame } from '../surfacestrain/surfacestrainframe.js';
-import { CollectFaceGeometry } from '../surfacestrain/surfacestrainsampler.js';
-import { GetMetreToUnitScale } from '../surfacestrain/surfacestrainunits.js';
+import { GetBoundingBox } from '../model/modelutils.js';
 
 // Long reach findings from long_reach.bin, painted on the model's BREP faces. The reference writer
 // and reader are freecad/app/long_reach_surface.py. The file carries a coarse mesh of the part
 // with the BREP face each triangle belongs to, and every face's findings. The viewer never trusts
 // that it numbers faces as the analysis did: each of its faces samples the file's mesh and takes
-// the findings of the face most of its samples land on. A length-to-diameter limit then only
-// chooses which faces to paint, so moving it never maps again.
+// the findings of the face most of its samples land on. The faces in a group are collected once,
+// ordered by their group's length to diameter, so a limit only chooses how many of them to draw.
 
 const LongReachMagic = 'UPLR';
 const LongReachVersion = 1;
@@ -49,7 +48,6 @@ export class LongReachData
         this.faceLengthToDiameter = null;
         this.faceMaxDiameter = null;
         this.faceReach = null;
-        this.faceDeepHole = null;
     }
 
     FaceCount ()
@@ -117,7 +115,8 @@ export function DecodeLongReach (buffer)
     data.faceLengthToDiameter = Take (Float32Array, faceCount);
     data.faceMaxDiameter = Take (Float32Array, faceCount);
     data.faceReach = Take (Float32Array, faceCount);
-    data.faceDeepHole = Take (Uint8Array, faceCount);
+    // The deep hole flag of each face, the viewer doesn't paint deep holes.
+    Take (Uint8Array, faceCount);
     if (offset !== buffer.byteLength) {
         throw new Error ('long reach file is longer than its header says');
     }
@@ -137,9 +136,7 @@ export class LongReachParams
         // above this.
         this.limit = 3.0;
         this.showLongReach = true;
-        this.showDeepHoles = true;
-        this.longReachColor = '#7c3aed';
-        this.deepHoleColor = '#2563eb';
+        this.color = '#7c3aed';
         // Allowed bounding box difference between the file and the model, in display mesh sizes.
         this.frameToleranceFactor = 2.0;
         // A sample farther than this many display mesh sizes from the file's mesh finds nothing.
@@ -156,7 +153,6 @@ export class LongReachCounts
         // Faces of the analysed STEP, as the analysis counts them.
         this.tooLongFaces = 0;
         this.tooLongGroups = 0;
-        this.deepHoleFaces = 0;
     }
 }
 
@@ -192,13 +188,58 @@ export class LongReachMapping
     }
 }
 
-function ValidateParams (params)
+/**
+ * The painted faces of one mesh instance, in model coordinates. The faces are ordered by the
+ * length to diameter of their group, highest first, so the faces too long under any limit are the
+ * first {@link PreparedLongReach#IndexCount} indices.
+ */
+export class PreparedLongReach
+{
+    constructor (meshInstanceId)
+    {
+        this.meshInstanceId = meshInstanceId;
+        // Float32Array of x, y, z.
+        this.positions = null;
+        // Float32Array of unit normals.
+        this.normals = null;
+        // Uint32Array, three vertex indices per triangle.
+        this.indices = null;
+        // Float32Array, the length to diameter of each face's group, descending.
+        this.faceLengthToDiameter = null;
+        // Uint32Array, the number of indices up to the end of each face.
+        this.faceIndexEnd = null;
+    }
+
+    /**
+     * @param {number} limit Length-to-diameter limit.
+     * @returns {number} The number of indices of the faces too long under the limit.
+     */
+    IndexCount (limit)
+    {
+        let count = 0;
+        for (let i = 0; i < this.faceLengthToDiameter.length && this.faceLengthToDiameter[i] > limit; i++) {
+            count = this.faceIndexEnd[i];
+        }
+        return count;
+    }
+}
+
+/**
+ * Checks the params that choose what to paint.
+ * @param {LongReachParams} params Parameters.
+ * @returns {{limit: number, show: boolean, color: number[]}} The limit, whether to paint, and the
+ * float color.
+ */
+export function ParseLongReachDisplay (params)
 {
     if (typeof params.limit !== 'number' || !Number.isFinite (params.limit) || params.limit <= 0.0) {
         throw new Error ('limit must be a positive number, got ' + JSON.stringify (params.limit));
     }
-    ParseHexColor (params.longReachColor, 'longReachColor');
-    ParseHexColor (params.deepHoleColor, 'deepHoleColor');
+    return {
+        limit : params.limit,
+        show : params.showLongReach !== false,
+        color : ParseHexColor (params.color, 'color')
+    };
 }
 
 function CreateGrid (data, scale)
@@ -288,7 +329,7 @@ export function MapLongReachToModel (model, data, scale, params)
 }
 
 /**
- * How many of the file's faces are too long under the limit, and in deep holes.
+ * How many of the file's faces are too long under the limit.
  * @param {LongReachData} data Decoded file.
  * @param {number} limit Length-to-diameter limit.
  * @returns {LongReachCounts}
@@ -302,57 +343,85 @@ export function CountLongReach (data, limit)
             counts.tooLongGroups += 1;
         }
     }
-    for (let deep of data.faceDeepHole) {
-        counts.deepHoleFaces += deep ? 1 : 0;
-    }
     return counts;
 }
 
+function PrepareMeshInstance (meshInstance, faces)
+{
+    faces.sort ((a, b) => b.lengthToDiameter - a.lengthToDiameter);
+    let mesh = meshInstance.GetMesh ();
+    let transformation = meshInstance.GetTransformation ();
+    let positions = [];
+    let normals = [];
+    let indices = [];
+    let faceLengthToDiameter = [];
+    let faceIndexEnd = [];
+    for (let face of faces) {
+        let geometry = CollectFaceGeometry (mesh, transformation, face.first, face.last);
+        let offset = positions.length / 3;
+        for (let i = 0; i < geometry.positions.length; i++) {
+            positions.push (geometry.positions[i]);
+            normals.push (geometry.normals[i]);
+        }
+        for (let vertexIndex of geometry.triangles) {
+            indices.push (vertexIndex + offset);
+        }
+        faceLengthToDiameter.push (face.lengthToDiameter);
+        faceIndexEnd.push (indices.length);
+    }
+    let prepared = new PreparedLongReach (meshInstance.GetId ());
+    prepared.positions = new Float32Array (positions);
+    prepared.normals = new Float32Array (normals);
+    prepared.indices = new Uint32Array (indices);
+    prepared.faceLengthToDiameter = new Float32Array (faceLengthToDiameter);
+    prepared.faceIndexEnd = new Uint32Array (faceIndexEnd);
+    return prepared;
+}
+
 /**
- * The face highlights that paint the mapping under the params: every face of a too-long group in
- * one color, the faces of deep holes in another.
+ * Collects the triangles of every model face that takes its findings from a face in a group, per
+ * mesh instance, for {@link Viewer#SetLongReach}. Which of them are painted is chosen later by the
+ * limit, without collecting them again.
+ * @param {Model} model The viewer's model the mapping was made on.
  * @param {LongReachMapping} mapping Model faces mapped onto the file's faces.
- * @param {LongReachParams} params Parameters.
- * @returns {FaceHighlight[]}
+ * @returns {PreparedLongReach[]}
  */
-export function LongReachHighlights (mapping, params)
+export function PrepareLongReachFaces (model, mapping)
 {
     let data = mapping.data;
     let groups = data.header.groups;
-    let tooLong = [];
-    let deep = [];
-    for (let modelFace = 0; modelFace < mapping.fileFaceOfModelFace.length; modelFace++) {
-        let fileFace = mapping.fileFaceOfModelFace[modelFace];
+    let modelFaces = GetModelFaces (model);
+    let facesOfInstances = new Map ();
+    for (let i = 0; i < modelFaces.length; i++) {
+        let fileFace = mapping.fileFaceOfModelFace[i];
         if (fileFace < 0) {
             continue;
         }
-        if (params.showDeepHoles && data.faceDeepHole[fileFace]) {
-            deep.push (modelFace);
+        let group = data.faceGroup[fileFace];
+        if (group < 0 || !Number.isFinite (groups[group].length_to_diameter)) {
             continue;
         }
-        let group = data.faceGroup[fileFace];
-        if (params.showLongReach && group >= 0 && groups[group].length_to_diameter > params.limit) {
-            tooLong.push (modelFace);
+        let face = modelFaces[i];
+        if (!facesOfInstances.has (face.meshInstance)) {
+            facesOfInstances.set (face.meshInstance, []);
         }
+        facesOfInstances.get (face.meshInstance).push ({ first : face.first, last : face.last, lengthToDiameter : groups[group].length_to_diameter });
     }
-    let highlights = [];
-    if (tooLong.length > 0) {
-        highlights.push (new FaceHighlight (tooLong, params.longReachColor));
+    let prepared = [];
+    for (let [meshInstance, faces] of facesOfInstances) {
+        prepared.push (PrepareMeshInstance (meshInstance, faces));
     }
-    if (deep.length > 0) {
-        highlights.push (new FaceHighlight (deep, params.deepHoleColor));
-    }
-    return highlights;
+    return prepared;
 }
 
 /**
  * Decodes a long_reach.bin, converts it from metres to the model unit, checks that it belongs to
- * the model, and maps the model's faces onto its faces.
+ * the model, maps the model's faces onto its faces, and collects the faces to paint.
  * @param {Model} model The viewer's model.
  * @param {ArrayBuffer} buffer Content of long_reach.bin.
  * @param {LongReachParams} [params] Parameters.
- * @returns {{result: LongReachResult, mapping: LongReachMapping|null}} On failure result.ok is
- * false, result.reason says why, and nothing must be shown.
+ * @returns {{result: LongReachResult, mapping: LongReachMapping|null, prepared: PreparedLongReach[]|null}}
+ * On failure result.ok is false, result.reason says why, and nothing must be shown.
  */
 export function PrepareLongReach (model, buffer, params)
 {
@@ -360,72 +429,43 @@ export function PrepareLongReach (model, buffer, params)
         params = new LongReachParams ();
     }
     let result = new LongReachResult ();
+    let Fail = (reason) => {
+        result.reason = reason;
+        return { result, mapping : null, prepared : null };
+    };
     try {
-        ValidateParams (params);
+        ParseLongReachDisplay (params);
     } catch (error) {
-        result.reason = error.message;
-        return { result, mapping : null };
+        return Fail (error.message);
     }
     let data = null;
     try {
         data = DecodeLongReach (buffer);
     } catch (error) {
-        result.reason = error.message;
-        return { result, mapping : null };
+        return Fail (error.message);
     }
     result.header = data.header;
 
     let viewerBox = GetBoundingBox (model);
     if (viewerBox === null) {
-        result.reason = 'the model is empty';
-        return { result, mapping : null };
+        return Fail ('the model is empty');
     }
     // The file is in metres, the model in its own unit (mm for STEP), and a wrongly scaled file
     // must never be painted. The header carries the same frame keys as the strain surface's.
-    let frame = MatchSurfaceStrainFrame (data.header, viewerBox, model.GetUnit (), params.frameToleranceFactor);
+    let frame = MatchAnalysisFrame (data.header, viewerBox, model.GetUnit (), params.frameToleranceFactor);
     if (!frame.ok) {
-        result.reason = frame.reason;
-        return { result, mapping : null };
+        return Fail (frame.reason);
     }
     result.unit = frame.unit;
 
     let mapping = MapLongReachToModel (model, data, GetMetreToUnitScale (frame.unit), params);
     if (mapping.sampleCount === 0) {
-        result.reason = 'the model has no faces to map onto';
-        return { result, mapping : null };
+        return Fail ('the model has no faces to map onto');
     }
     if (mapping.FailedFraction () > params.maxFailedFraction) {
-        result.reason = mapping.failedCount.toString () + ' of ' + mapping.sampleCount.toString () + ' samples found no face of the long reach mesh';
-        return { result, mapping : null };
+        return Fail (mapping.failedCount.toString () + ' of ' + mapping.sampleCount.toString () + ' samples found no face of the long reach mesh');
     }
     result.ok = true;
     result.counts = CountLongReach (data, params.limit);
-    return { result, mapping };
-}
-
-/**
- * Prepares the face highlights of a mapping under the params, for {@link Viewer#SetFaceHighlights}.
- * @param {Model} model The viewer's model the mapping was made on.
- * @param {LongReachMapping} mapping Model faces mapped onto the file's faces.
- * @param {LongReachParams} params Parameters.
- * @returns {{result: LongReachResult, prepared: object[]|null}} The prepared face highlights.
- */
-export function PrepareLongReachHighlights (model, mapping, params)
-{
-    let result = new LongReachResult ();
-    try {
-        ValidateParams (params);
-    } catch (error) {
-        result.reason = error.message;
-        return { result, prepared : null };
-    }
-    let prepared = PrepareFaceHighlights (model, LongReachHighlights (mapping, params));
-    if (!prepared.result.ok) {
-        result.reason = prepared.result.reason;
-        return { result, prepared : null };
-    }
-    result.ok = true;
-    result.header = mapping.data.header;
-    result.counts = CountLongReach (mapping.data, params.limit);
-    return { result, prepared : prepared.prepared };
+    return { result, mapping, prepared : PrepareLongReachFaces (model, mapping) };
 }

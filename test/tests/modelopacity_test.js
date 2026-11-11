@@ -14,7 +14,7 @@ function CreateViewer ()
     viewer.mainModel = new OV.ViewerMainModel (viewer.scene);
     viewer.extraModel = new OV.ViewerModel (viewer.scene);
     viewer.surfaceStrainModel = new OV.ViewerModel (viewer.scene);
-    viewer.faceHighlightModel = new OV.ViewerModel (viewer.scene);
+    viewer.longReachModel = new OV.ViewerModel (viewer.scene);
     viewer.edgeHighlightModel = new OV.ViewerModel (viewer.scene);
     viewer.shadingModel = new OV.ShadingModel (viewer.scene);
     viewer.Render = () => {};
@@ -70,20 +70,27 @@ function PrepareEdges ()
     return prepared.prepared;
 }
 
+// The box's second face of six triangles in a group 5 diameters long.
 function PrepareFaces ()
 {
     let model = CreateBoxModel ();
     let mesh = model.GetMesh (0);
     mesh.SetBrepFaces ([{ first : 0, last : 5 }, { first : 6, last : 11 }]);
-    let prepared = OV.PrepareFaceHighlights (model, [{ faces : [1], color : '#7c3aed' }]);
-    assert.ok (prepared.result.ok, prepared.result.reason);
-    return prepared.prepared;
+    let data = { header : { groups : [{ length_to_diameter : 5.0 }] }, faceGroup : [-1, 0] };
+    let mapping = new OV.LongReachMapping (data, 2);
+    mapping.fileFaceOfModelFace.set ([0, 1]);
+    return OV.PrepareLongReachFaces (model, mapping);
+}
+
+function ShowFaces (viewer, limit = 3.0)
+{
+    viewer.SetLongReach (PrepareFaces (), limit, true, [0.5, 0.25, 1.0]);
 }
 
 function FaceMeshes (viewer)
 {
     let meshes = [];
-    viewer.faceHighlightModel.Traverse ((obj) => {
+    viewer.longReachModel.Traverse ((obj) => {
         if (obj.isMesh) {
             meshes.push (obj);
         }
@@ -229,26 +236,39 @@ describe ('Model Opacity', function () {
         }
     });
 
-    it ('Keeps face highlights opaque over a faded model', function () {
+    it ('Draws the long reach faces too long under the limit, in the color', function () {
+        let viewer = CreateViewer ();
+        viewer.SetMainObject (CreateMainObject ([[new THREE.MeshPhongMaterial ()]]));
+        ShowFaces (viewer);
+        let mesh = FaceMeshes (viewer)[0];
+        assert.deepStrictEqual ([mesh.geometry.drawRange.count, mesh.material.color.toArray ()], [18, [0.5, 0.25, 1.0]]);
+        viewer.SetLongReachDisplay (6.0, true, [1.0, 0.0, 0.0]);
+        assert.deepStrictEqual ([mesh.geometry.drawRange.count, mesh.material.color.toArray ()], [0, [1.0, 0.0, 0.0]]);
+        viewer.SetLongReachDisplay (3.0, false, [1.0, 0.0, 0.0]);
+        assert.strictEqual (mesh.geometry.drawRange.count, 0);
+        assert.strictEqual (FaceMeshes (viewer)[0], mesh);
+    });
+
+    it ('Keeps long reach faces opaque over a faded model', function () {
         let viewer = CreateViewer ();
         viewer.SetMainObject (CreateMainObject ([[new THREE.MeshPhongMaterial ()]]));
         assert.ok (viewer.SetModelOpacity (0.2));
-        viewer.SetFaceHighlights (PrepareFaces ());
-        assert.ok (viewer.HasFaceHighlights ());
+        ShowFaces (viewer);
+        assert.ok (viewer.HasLongReach ());
         let meshes = FaceMeshes (viewer);
         assert.strictEqual (meshes.length, 1);
         assert.deepStrictEqual (MaterialState (meshes[0].material), { transparent : false, opacity : 1, depthWrite : true });
         assert.ok (viewer.SetModelOpacity (0.5));
         assert.deepStrictEqual (MaterialState (meshes[0].material), { transparent : false, opacity : 1, depthWrite : true });
-        viewer.ClearFaceHighlights ();
-        assert.ok (!viewer.HasFaceHighlights ());
+        viewer.ClearLongReach ();
+        assert.ok (!viewer.HasLongReach ());
         assert.strictEqual (FaceMeshes (viewer).length, 0);
     });
 
-    it ('Pulls face highlights in front of the meshes and the surface strain', function () {
+    it ('Pulls long reach faces in front of the meshes and the surface strain', function () {
         let viewer = CreateViewer ();
         viewer.SetMainObject (CreateMainObject ([[new THREE.MeshPhongMaterial ()]]));
-        viewer.SetFaceHighlights (PrepareFaces ());
+        ShowFaces (viewer);
         let material = FaceMeshes (viewer)[0].material;
         // The meshes have no polygon offset, the faces still win against the strain overlay.
         assert.strictEqual (material.polygonOffset, true);
@@ -268,14 +288,14 @@ describe ('Model Opacity', function () {
         assert.strictEqual (material.polygonOffsetFactor, 0);
     });
 
-    it ('Hides the face highlights of a hidden mesh', function () {
+    it ('Hides the long reach faces of a hidden mesh', function () {
         let viewer = CreateViewer ();
         // The prepared faces belong to mesh instance 0:0.
         viewer.SetMainObject (CreateMainObject ([[new THREE.MeshPhongMaterial ()]]));
         viewer.mainModel.EnumerateMeshes ((mesh) => {
             mesh.userData = MeshUserData ('0:0');
         });
-        viewer.SetFaceHighlights (PrepareFaces ());
+        ShowFaces (viewer);
         assert.strictEqual (FaceMeshes (viewer)[0].visible, true);
         viewer.SetMeshesVisibility (() => false);
         assert.strictEqual (FaceMeshes (viewer)[0].visible, false);

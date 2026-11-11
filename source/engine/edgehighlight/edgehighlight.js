@@ -1,8 +1,8 @@
+import { ParseHexColor } from '../analysis/analysiscolor.js';
+import { AnalysisUnitCandidates, AnalysisUnitToString } from '../analysis/analysisunits.js';
 import { TriangleGrid, TriangleGridHit } from '../geometry/trianglegrid.js';
 import { GetBoundingBox } from '../model/modelutils.js';
 import { Unit, convertUnit } from '../model/unit.js';
-import { ParseHexColor } from '../surfacestrain/surfacestraincolor.js';
-import { SurfaceStrainUnitCandidates, SurfaceStrainUnitToString } from '../surfacestrain/surfacestrainunits.js';
 
 // Coloured polylines drawn on the model, for example the risky edges of a frequency analysis.
 // The polylines come from the host in a known unit (mm in the STEP's own frame) and are converted
@@ -236,7 +236,7 @@ function CheckOnSurface (model, edges, params)
     let modelUnit = model.GetUnit ();
 
     // Without a model unit there is nothing to convert to, the coordinates are used as they are.
-    if (!SurfaceStrainUnitCandidates.includes (modelUnit)) {
+    if (!AnalysisUnitCandidates.includes (modelUnit)) {
         let fit = MeasureSurfaceFit (edges, 1.0, index, box, tolerance);
         if (!fit.Fits ()) {
             return OffSurfaceReason (fit.offSurface) + ', the edges may belong to another part';
@@ -250,11 +250,11 @@ function CheckOnSurface (model, edges, params)
     let scale = GetScale (params.unit, modelUnit);
     let fit = MeasureSurfaceFit (edges, scale, index, box, tolerance);
     let collapsed = IsCollapsed (scale);
-    let unitName = SurfaceStrainUnitToString (params.unit);
+    let unitName = AnalysisUnitToString (params.unit);
 
     // The other units in which the edges keep a real size, the largest first, so a reason names
     // the unit with the most spread out fit.
-    let candidates = SurfaceStrainUnitCandidates
+    let candidates = AnalysisUnitCandidates
         .filter ((unit) => unit !== params.unit)
         .map ((unit) => ({ unit : unit, scale : GetScale (unit, modelUnit) }))
         .filter ((candidate) => !IsCollapsed (candidate.scale))
@@ -270,7 +270,7 @@ function CheckOnSurface (model, edges, params)
     if (!fit.Fits ()) {
         let fittingUnit = FindFittingUnit (() => true);
         if (fittingUnit !== undefined) {
-            return OffSurfaceReason (fit.offSurface) + ', the edges fit the model only if they were in ' + SurfaceStrainUnitToString (fittingUnit) + ', not ' + unitName;
+            return OffSurfaceReason (fit.offSurface) + ', the edges fit the model only if they were in ' + AnalysisUnitToString (fittingUnit) + ', not ' + unitName;
         }
         return OffSurfaceReason (fit.offSurface) + ', the edges may belong to another part';
     }
@@ -279,7 +279,7 @@ function CheckOnSurface (model, edges, params)
         // A collapsed set lies on the surface by chance, any other unit that fits explains it.
         let fittingUnit = FindFittingUnit (() => true);
         if (fittingUnit !== undefined) {
-            return 'the edges collapse to a point in ' + unitName + ', they fit the model only if they were in ' + SurfaceStrainUnitToString (fittingUnit);
+            return 'the edges collapse to a point in ' + unitName + ', they fit the model only if they were in ' + AnalysisUnitToString (fittingUnit);
         }
         return null;
     }
@@ -288,7 +288,7 @@ function CheckOnSurface (model, edges, params)
     if (fit.maxDistance > tolerance / CloserFitRatio) {
         let closerUnit = FindFittingUnit ((otherFit) => otherFit.maxDistance * CloserFitRatio < fit.maxDistance);
         if (closerUnit !== undefined) {
-            return 'the edges lie on the model only loosely in ' + unitName + ', they fit it much more closely in ' + SurfaceStrainUnitToString (closerUnit);
+            return 'the edges lie on the model only loosely in ' + unitName + ', they fit it much more closely in ' + AnalysisUnitToString (closerUnit);
         }
     }
     return null;
@@ -314,7 +314,7 @@ export function PrepareEdgeHighlights (model, edges, params)
         result.reason = 'edges must be a list';
         return { result, prepared : null };
     }
-    if (!SurfaceStrainUnitCandidates.includes (params.unit)) {
+    if (!AnalysisUnitCandidates.includes (params.unit)) {
         result.reason = 'unit must be one of the OV.Unit values mm, cm, m, in or ft, got ' + JSON.stringify (params.unit);
         return { result, prepared : null };
     }
@@ -344,7 +344,7 @@ export function PrepareEdgeHighlights (model, edges, params)
             return { result, prepared : null };
         }
         let modelUnit = model.GetUnit ();
-        if (SurfaceStrainUnitCandidates.includes (modelUnit) && modelUnit !== params.unit) {
+        if (AnalysisUnitCandidates.includes (modelUnit) && modelUnit !== params.unit) {
             let scale = GetScale (params.unit, modelUnit);
             for (let edge of prepared) {
                 for (let i = 0; i < edge.positions.length; i++) {

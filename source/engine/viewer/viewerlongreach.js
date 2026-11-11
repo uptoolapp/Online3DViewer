@@ -3,12 +3,13 @@ import { ShadingType } from '../threejs/threeutils.js';
 import * as THREE from 'three';
 
 /**
- * Three.js overlay that paints prepared face highlights over the model. The painted triangles are
- * the model's own, so they lie on the same surface as the meshes and the surface strain overlay.
- * They are pulled forward by a polygon offset to win the depth test against them, see
- * {@link ViewerFaceHighlight#SetPolygonOffset}.
+ * Three.js overlay that paints the long reach faces over the model. The painted triangles are the
+ * model's own, so they lie on the same surface as the meshes and the surface strain overlay. They
+ * are pulled forward by a polygon offset to win the depth test against them, see
+ * {@link ViewerLongReach#SetPolygonOffset}. The geometry is built once, a limit only changes how
+ * many of its indices are drawn.
  */
-export class ViewerFaceHighlight
+export class ViewerLongReach
 {
     constructor (prepared)
     {
@@ -23,12 +24,10 @@ export class ViewerFaceHighlight
             let geometry = new THREE.BufferGeometry ();
             geometry.setAttribute ('position', new THREE.BufferAttribute (instance.positions, 3));
             geometry.setAttribute ('normal', new THREE.BufferAttribute (instance.normals, 3));
-            geometry.setAttribute ('color', new THREE.BufferAttribute (instance.colors, 3));
             geometry.setIndex (new THREE.BufferAttribute (instance.indices, 1));
 
             let materialParams = {
                 color : 0xffffff,
-                vertexColors : true,
                 side : THREE.DoubleSide,
                 polygonOffset : true,
                 polygonOffsetFactor : 0,
@@ -43,11 +42,26 @@ export class ViewerFaceHighlight
 
             let threeMesh = new THREE.Mesh (geometry, material);
             threeMesh.userData = {
-                faceHighlight : instance
+                longReach : instance
             };
             this.rootObject.add (threeMesh);
         }
         return this.rootObject;
+    }
+
+    /**
+     * Chooses the painted faces and their color.
+     * @param {number} limit Faces of groups above this length to diameter are painted.
+     * @param {boolean} show False paints nothing.
+     * @param {number[]} color Float r, g, b in 0..1.
+     */
+    SetDisplay (limit, show, color)
+    {
+        for (let threeMesh of this.rootObject.children) {
+            let count = (show ? threeMesh.userData.longReach.IndexCount (limit) : 0);
+            threeMesh.geometry.setDrawRange (0, count);
+            threeMesh.material.color.setRGB (color[0], color[1], color[2]);
+        }
     }
 
     /**

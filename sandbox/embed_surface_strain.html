@@ -68,7 +68,7 @@
                     }
                     let mapping = result.mapping;
                     statusDiv.textContent = 'Relative vibration strain at ' + (result.header.reference_acceleration_m_s2 / 9.80665).toFixed (0) + ' g, ' +
-                        result.header.element_type + ', unit ' + OV.SurfaceStrainUnitToString (result.unit) + ', ' +
+                        result.header.element_type + ', unit ' + OV.AnalysisUnitToString (result.unit) + ', ' +
                         mapping.vertexCount + ' vertices, ' + mapping.failedCount + ' failed' + (mapping.capped ? ', capped' : '') +
                         ', ' + Math.round (performance.now () - start) + ' ms';
                     document.body.setAttribute ('data-strain-shown', 'true');
