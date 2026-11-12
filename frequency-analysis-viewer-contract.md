@@ -346,7 +346,7 @@ so changing it never maps or collects the faces again.
   |---|---|---|
   | `limit` | `3` | A group is too long when its `length_to_diameter` is above this. A positive number. |
   | `showLongReach` | `true` | Paint the faces of too-long groups; `false` keeps the mapping but paints nothing. |
-  | `color` | `#7c3aed` | Colour of too-long faces, `"#rrggbb"` or `"rrggbb"`. |
+  | `color` | `#a21caf` | Colour of too-long faces, `"#rrggbb"` or `"rrggbb"`. |
   | `frameToleranceFactor` | `2.0` | Allowed bounding box difference, in display mesh sizes. |
   | `maxDistanceFactor` | `2.0` | A sample farther than this many display mesh sizes from the file's mesh finds nothing. |
   | `maxFailedFraction` | `0.02` | The mapping fails if more samples than this find nothing. |

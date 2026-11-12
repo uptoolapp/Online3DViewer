@@ -247,12 +247,12 @@ describe ('Long Reach Overlays', function () {
         return { viewer, overlays };
     }
 
-    const Violet = [0x7c / 255, 0x3a / 255, 0xed / 255];
+    const Magenta = [0xa2 / 255, 0x1c / 255, 0xaf / 255];
 
     it ('Paints the findings it maps', async function () {
         let { viewer, overlays } = CreateOverlays ();
         let result = await overlays.ShowLongReach (BoxFile (), Params ());
-        assert.deepStrictEqual ([result.ok, viewer.shown.length, viewer.displays, overlays.HasLongReach ()], [true, 1, [[3.0, true, Violet]], true]);
+        assert.deepStrictEqual ([result.ok, viewer.shown.length, viewer.displays, overlays.HasLongReach ()], [true, 1, [[3.0, true, Magenta]], true]);
     });
 
     it ('Repaints under new params without collecting the faces again', async function () {
@@ -261,7 +261,7 @@ describe ('Long Reach Overlays', function () {
         let result = overlays.SetLongReachParams (Params ({ limit : 6.0, showLongReach : false }));
         assert.deepStrictEqual (
             [result.counts.tooLongFaces, viewer.shown.length, viewer.displays[1]],
-            [0, 1, [6.0, false, Violet]]
+            [0, 1, [6.0, false, Magenta]]
         );
     });
 

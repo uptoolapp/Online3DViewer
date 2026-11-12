@@ -320,7 +320,7 @@ describe ('Host Messages Long Reach', function () {
         env.frameWindow.Send ({ type : HostMessageType.LongReachClear, requestId : 3 });
         assert.deepStrictEqual (env.overlays.calls, [
             // The color stays the viewer's.
-            ['ShowLongReach', Buffer, 4, false, '#7c3aed'],
+            ['ShowLongReach', Buffer, 4, false, '#a21caf'],
             ['SetLongReachParams', 6, true],
             ['ClearLongReach']
         ]);
@@ -338,7 +338,7 @@ describe ('Host Messages Long Reach', function () {
         LoadModel (env);
         await Flush ();
         assert.deepStrictEqual ([env.overlays.calls, Results (env).map ((result) => [result.requestId, result.ok])], [
-            [['ShowLongReach', Buffer, 4, true, '#7c3aed']],
+            [['ShowLongReach', Buffer, 4, true, '#a21caf']],
             [[1, true]]
         ]);
     });
@@ -349,7 +349,7 @@ describe ('Host Messages Long Reach', function () {
         env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4 }, requestId : 1 });
         env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 2 });
         await Flush ();
-        assert.deepStrictEqual (env.overlays.calls, [['ShowLongReach', Buffer, 4, true, '#7c3aed'], ['SetLongReachParams', 6, true]]);
+        assert.deepStrictEqual (env.overlays.calls, [['ShowLongReach', Buffer, 4, true, '#a21caf'], ['SetLongReachParams', 6, true]]);
     });
 
     it ('Answers a long reach cleared before the model, and reapplies the latest on every load', async function () {
@@ -364,9 +364,9 @@ describe ('Host Messages Long Reach', function () {
         await Flush ();
         assert.deepStrictEqual (env.overlays.calls, [
             ['ClearLongReach'],
-            ['ShowLongReach', Buffer, 4, true, '#7c3aed'],
+            ['ShowLongReach', Buffer, 4, true, '#a21caf'],
             ['SetLongReachParams', 6, true],
-            ['ShowLongReach', Buffer, 6, true, '#7c3aed']
+            ['ShowLongReach', Buffer, 6, true, '#a21caf']
         ]);
         assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.ok, result.reason]), [
             [1, false, 'the long reach was cleared before the model loaded'],

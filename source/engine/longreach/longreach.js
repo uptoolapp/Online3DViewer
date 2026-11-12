@@ -136,7 +136,7 @@ export class LongReachParams
         // above this.
         this.limit = 3.0;
         this.showLongReach = true;
-        this.color = '#7c3aed';
+        this.color = '#a21caf';
         // Allowed bounding box difference between the file and the model, in display mesh sizes.
         this.frameToleranceFactor = 2.0;
         // A sample farther than this many display mesh sizes from the file's mesh finds nothing.
