@@ -26,13 +26,13 @@ function CreateSurfaceStrainParams (thresholds)
     return params;
 }
 
-// The host sends only what it chooses: the limit and whether to show the findings. The color and
-// the mapping tolerances stay the viewer's.
+// The host sends only what it chooses: the limit, whether to show the findings, and their color, so
+// the host owns how its findings look. The mapping tolerances stay the viewer's.
 function CreateLongReachParams (settings)
 {
     let params = new LongReachParams ();
     if (settings !== null && typeof settings === 'object') {
-        for (let key of ['limit', 'showLongReach']) {
+        for (let key of ['limit', 'showLongReach', 'color']) {
             if (settings[key] !== undefined) {
                 params[key] = settings[key];
             }
