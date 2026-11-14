@@ -1,5 +1,5 @@
-import { Coord3D } from '../geometry/coord3d.js';
 import { TriangleGrid, TriangleGridHit } from '../geometry/trianglegrid.js';
+import { CollectFaceGeometry } from '../analysis/analysisfaces.js';
 import { RefineTriangles, RefinementBudget } from './surfacestrainrefine.js';
 
 // Samples the FE surface strain onto the viewer's own tessellation. Every length here is in the
@@ -113,51 +113,6 @@ export class SurfaceStrainMappingParams
         // A vertex farther than this many FE mesh sizes from any candidate triangle is a failure.
         this.maxDistanceFactor = 2.0;
     }
-}
-
-function CollectFaceGeometry (mesh, transformation, firstTriangle, lastTriangle)
-{
-    let isIdentity = transformation.IsIdentity ();
-    let vertexMap = new Map ();
-    let positions = [];
-    let normals = [];
-    let triangles = [];
-
-    function AddVertex (vertexIndex, normalIndex)
-    {
-        let key = vertexIndex.toString () + '/' + (normalIndex === null ? '' : normalIndex.toString ());
-        let index = vertexMap.get (key);
-        if (index !== undefined) {
-            return index;
-        }
-        let vertex = mesh.GetVertex (vertexIndex);
-        let normal = normalIndex === null ? new Coord3D (0.0, 0.0, 0.0) : mesh.GetNormal (normalIndex);
-        if (!isIdentity) {
-            let tip = transformation.TransformCoord3D (new Coord3D (vertex.x + normal.x, vertex.y + normal.y, vertex.z + normal.z));
-            vertex = transformation.TransformCoord3D (vertex);
-            normal = new Coord3D (tip.x - vertex.x, tip.y - vertex.y, tip.z - vertex.z);
-        }
-        let length = Math.sqrt (normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-        if (length > 0.0) {
-            normal = new Coord3D (normal.x / length, normal.y / length, normal.z / length);
-        }
-        index = positions.length / 3;
-        positions.push (vertex.x, vertex.y, vertex.z);
-        normals.push (normal.x, normal.y, normal.z);
-        vertexMap.set (key, index);
-        return index;
-    }
-
-    for (let i = firstTriangle; i <= lastTriangle; i++) {
-        let triangle = mesh.GetTriangle (i);
-        triangles.push (
-            AddVertex (triangle.v0, triangle.n0),
-            AddVertex (triangle.v1, triangle.n1),
-            AddVertex (triangle.v2, triangle.n2)
-        );
-    }
-
-    return { positions, normals, triangles };
 }
 
 function GetMeshFaceRanges (mesh)

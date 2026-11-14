@@ -247,6 +247,51 @@ export class EmbeddedViewer
     }
 
     /**
+     * Paints the long reach findings of long_reach.bin on the model's BREP faces: every face of a
+     * group too long under params.limit in params.color. The file is mapped onto the model by
+     * geometry, so the model must be the STEP the analysis ran on, unmoved. The host fetches the
+     * file and passes its content. The promise never rejects: on failure ok is false, reason says
+     * why, and the previous paint stays. A new model or ClearLongReach before the mapping runs
+     * resolves with ok false and paints nothing. The faces are painted over the surface strain,
+     * stay opaque when the model is faded, and are cleared when a new model starts loading.
+     * @param {ArrayBuffer} buffer Content of long_reach.bin.
+     * @param {LongReachParams} [params] Parameters.
+     * @returns {Promise<LongReachResult>} With the header and how many faces are too long.
+     */
+    ShowLongReach (buffer, params)
+    {
+        return this.overlays.ShowLongReach (buffer, params);
+    }
+
+    /**
+     * Paints the shown long reach findings under new params, for example another limit, without
+     * mapping again or collecting the faces again, so a slider can call it on every move. Only
+     * limit, showLongReach and color are used. On failure the current paint stays.
+     * @param {LongReachParams} params Parameters.
+     * @returns {LongReachResult} With how many faces are too long under the new limit.
+     */
+    SetLongReachParams (params)
+    {
+        return this.overlays.SetLongReachParams (params);
+    }
+
+    /**
+     * Removes the long reach findings painted by ShowLongReach.
+     */
+    ClearLongReach ()
+    {
+        this.overlays.ClearLongReach ();
+    }
+
+    /**
+     * @returns {boolean} True if long reach findings are shown.
+     */
+    HasLongReach ()
+    {
+        return this.overlays.HasLongReach ();
+    }
+
+    /**
      * Draws coloured polylines on the model, for example the risky edges of a frequency analysis.
      * The coordinates are converted from params.unit (mm by default) to the model's unit and must
      * lie on the model. Each call replaces the shown edges, but only on success, a failed call
@@ -272,7 +317,8 @@ export class EmbeddedViewer
 
     /**
      * Fades the model, the surface strain and the highlighted meshes, and draws the edge
-     * highlights on top of them, so the edges behind the model show through it. It is a setting,
+     * highlights on top of them, so the edges behind the model show through it. Faces painted by
+     * ShowLongReach stay opaque, so they show through the model too. It is a setting,
      * not an overlay: it may be called before a model loads, and it stays through model loads and
      * surface strain recolors. See {@link Viewer#SetModelOpacity}.
      * @param {number} opacity In (0, 1], 1 shows the model solid.

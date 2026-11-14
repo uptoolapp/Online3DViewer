@@ -1,10 +1,14 @@
 import { IsDefined } from '../engine/core/core.js';
+import { LongReachParams } from '../engine/longreach/longreach.js';
 import { SurfaceStrainParams } from '../engine/surfacestrain/surfacestrain.js';
 
 export const HostMessageType =
 {
     EdgeHighlightsShow : 'o3dv:edge-highlights:show',
     EdgeHighlightsClear : 'o3dv:edge-highlights:clear',
+    LongReachShow : 'o3dv:long-reach:show',
+    LongReachParams : 'o3dv:long-reach:params',
+    LongReachClear : 'o3dv:long-reach:clear',
     SurfaceStrainShow : 'o3dv:surface-strain:show',
     SurfaceStrainColors : 'o3dv:surface-strain:colors',
     SurfaceStrainClear : 'o3dv:surface-strain:clear',
@@ -22,10 +26,44 @@ function CreateSurfaceStrainParams (thresholds)
     return params;
 }
 
+// The host sends only what it chooses: the limit, whether to show the findings, and their color, so
+// the host owns how its findings look. The mapping tolerances stay the viewer's.
+function CreateLongReachParams (settings)
+{
+    let params = new LongReachParams ();
+    if (settings !== null && typeof settings === 'object') {
+        for (let key of ['limit', 'showLongReach', 'color']) {
+            if (settings[key] !== undefined) {
+                params[key] = settings[key];
+            }
+        }
+    }
+    return params;
+}
+
+// The overlays that map a file onto the model. A show is asynchronous, and its settings (strain
+// thresholds, long reach limit) can change while it maps and are applied when it is done.
+const MappedOverlays = {
+    strain : {
+        name : 'surface strain',
+        showType : HostMessageType.SurfaceStrainShow,
+        Show : (overlays, buffer, settings) => overlays.ShowSurfaceStrain (buffer, CreateSurfaceStrainParams (settings)),
+        Update : (overlays, settings) => overlays.SetSurfaceStrainColors (CreateSurfaceStrainParams (settings)),
+        Clear : (overlays) => overlays.ClearSurfaceStrain ()
+    },
+    longReach : {
+        name : 'long reach',
+        showType : HostMessageType.LongReachShow,
+        Show : (overlays, buffer, settings) => overlays.ShowLongReach (buffer, CreateLongReachParams (settings)),
+        Update : (overlays, settings) => overlays.SetLongReachParams (CreateLongReachParams (settings)),
+        Clear : (overlays) => overlays.ClearLongReach ()
+    }
+};
+
 /**
- * Lets the page that embeds the website in an iframe draw the DFM overlays (edge highlights and
- * surface strain) over postMessage. It keeps the last requested overlays and draws them again
- * after every model load, so a command may arrive before the model and is applied when it is
+ * Lets the page that embeds the website in an iframe draw the DFM overlays (edge highlights, face
+ * long reach and surface strain) over postMessage. It keeps the last requested overlays and draws
+ * them again after every model load, so a command may arrive before the model and is applied when it is
  * shown. It also sets the model opacity, a viewer setting that is applied at once and that the
  * viewer keeps through model loads. Only messages from the parent window on the website's own
  * origin are accepted.
@@ -43,12 +81,19 @@ export class HostMessageHandler
         this.origin = null;
         // Last requested overlays, null if none.
         this.edges = null;
-        this.strain = null;
-        // Promise of the surface strain being shown, it resolves with the result.
-        this.strainShowing = null;
+        // Per key of MappedOverlays, { buffer, settings } of the last requested overlay.
+        this.mapped = {};
+        // Per key of MappedOverlays, the promise of the overlay being shown, it resolves with the
+        // result.
+        this.showing = {};
+        for (let kind of Object.keys (MappedOverlays)) {
+            this.mapped[kind] = null;
+            this.showing[kind] = null;
+        }
         // Commands that arrived without a model, they are answered when it is shown.
         this.pending = {
             edges : [],
+            longReach : [],
             strain : []
         };
     }
@@ -91,11 +136,13 @@ export class HostMessageHandler
             this.AnswerAll (edgesPending, HostMessageType.EdgeHighlightsShow, result);
         }
 
-        let strainPending = this.TakePending ('strain');
-        if (this.strain !== null) {
-            this.ShowStrain ().then ((result) => {
-                this.AnswerAll (strainPending, HostMessageType.SurfaceStrainShow, result);
-            });
+        for (let kind of Object.keys (MappedOverlays)) {
+            let pending = this.TakePending (kind);
+            if (this.mapped[kind] !== null) {
+                this.ShowMapped (kind).then ((result) => {
+                    this.AnswerAll (pending, MappedOverlays[kind].showType, result);
+                });
+            }
         }
     }
 
@@ -124,12 +171,18 @@ export class HostMessageHandler
             this.OnEdgeHighlightsShow (command, message.edges);
         } else if (message.type === HostMessageType.EdgeHighlightsClear) {
             this.OnEdgeHighlightsClear (command);
+        } else if (message.type === HostMessageType.LongReachShow) {
+            this.OnMappedShow ('longReach', command, message.buffer, message.params);
+        } else if (message.type === HostMessageType.LongReachParams) {
+            this.OnMappedUpdate ('longReach', command, message.params);
+        } else if (message.type === HostMessageType.LongReachClear) {
+            this.OnMappedClear ('longReach', command);
         } else if (message.type === HostMessageType.SurfaceStrainShow) {
-            this.OnSurfaceStrainShow (command, message.buffer, message.thresholds);
+            this.OnMappedShow ('strain', command, message.buffer, message.thresholds);
         } else if (message.type === HostMessageType.SurfaceStrainColors) {
-            this.OnSurfaceStrainColors (command, message.thresholds);
+            this.OnMappedUpdate ('strain', command, message.thresholds);
         } else if (message.type === HostMessageType.SurfaceStrainClear) {
-            this.OnSurfaceStrainClear (command);
+            this.OnMappedClear ('strain', command);
         } else if (message.type === HostMessageType.ModelOpacitySet) {
             this.OnModelOpacitySet (command, message.opacity);
         }
@@ -154,46 +207,47 @@ export class HostMessageHandler
         this.Answer (command, { ok : true, reason : null });
     }
 
-    OnSurfaceStrainShow (command, buffer, thresholds)
+    OnMappedShow (kind, command, buffer, settings)
     {
-        this.strain = {
+        this.mapped[kind] = {
             buffer : buffer,
-            thresholds : thresholds
+            settings : settings
         };
         if (!this.overlays.HasModel ()) {
-            this.Supersede ('strain', 'replaced by a later command before the model loaded');
-            this.pending.strain.push (command);
+            this.Supersede (kind, 'replaced by a later command before the model loaded');
+            this.pending[kind].push (command);
             return;
         }
-        this.ShowStrain ().then ((result) => {
+        this.ShowMapped (kind).then ((result) => {
             this.Answer (command, result);
         });
     }
 
-    OnSurfaceStrainColors (command, thresholds)
+    OnMappedUpdate (kind, command, settings)
     {
-        if (this.strain === null) {
-            this.Answer (command, { ok : false, reason : 'no surface strain is shown' });
+        let mapped = this.mapped[kind];
+        if (mapped === null) {
+            this.Answer (command, { ok : false, reason : 'no ' + MappedOverlays[kind].name + ' is shown' });
             return;
         }
-        this.strain.thresholds = thresholds;
+        mapped.settings = settings;
         if (!this.overlays.HasModel ()) {
-            this.pending.strain.push (command);
-        } else if (this.strainShowing !== null) {
-            // ShowStrain applies the new colors when the mapping is done.
-            this.strainShowing.then ((result) => {
+            this.pending[kind].push (command);
+        } else if (this.showing[kind] !== null) {
+            // ShowMapped applies the new settings when the mapping is done.
+            this.showing[kind].then ((result) => {
                 this.Answer (command, result);
             });
         } else {
-            this.Answer (command, this.overlays.SetSurfaceStrainColors (CreateSurfaceStrainParams (thresholds)));
+            this.Answer (command, MappedOverlays[kind].Update (this.overlays, settings));
         }
     }
 
-    OnSurfaceStrainClear (command)
+    OnMappedClear (kind, command)
     {
-        this.strain = null;
-        this.Supersede ('strain', 'the surface strain was cleared before the model loaded');
-        this.overlays.ClearSurfaceStrain ();
+        this.mapped[kind] = null;
+        this.Supersede (kind, 'the ' + MappedOverlays[kind].name + ' was cleared before the model loaded');
+        MappedOverlays[kind].Clear (this.overlays);
         this.Answer (command, { ok : true, reason : null });
     }
 
@@ -204,21 +258,22 @@ export class HostMessageHandler
         this.Answer (command, this.overlays.SetModelOpacity (opacity));
     }
 
-    ShowStrain ()
+    ShowMapped (kind)
     {
-        let strain = this.strain;
-        let thresholds = strain.thresholds;
-        let showing = this.overlays.ShowSurfaceStrain (strain.buffer, CreateSurfaceStrainParams (thresholds)).then ((result) => {
-            if (this.strainShowing === showing) {
-                this.strainShowing = null;
+        let overlay = MappedOverlays[kind];
+        let mapped = this.mapped[kind];
+        let settings = mapped.settings;
+        let showing = overlay.Show (this.overlays, mapped.buffer, settings).then ((result) => {
+            if (this.showing[kind] === showing) {
+                this.showing[kind] = null;
             }
-            // The colors changed while the mapping ran.
-            if (result.ok && this.strain === strain && strain.thresholds !== thresholds) {
-                result = this.overlays.SetSurfaceStrainColors (CreateSurfaceStrainParams (strain.thresholds));
+            // The settings changed while the mapping ran.
+            if (result.ok && this.mapped[kind] === mapped && mapped.settings !== settings) {
+                result = overlay.Update (this.overlays, mapped.settings);
             }
             return result;
         });
-        this.strainShowing = showing;
+        this.showing[kind] = showing;
         return showing;
     }
 

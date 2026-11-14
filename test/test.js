@@ -31,6 +31,7 @@ import parameterlist_test from './tests/parameterlist_test.js';
 import surfacestrain_test from './tests/surfacestrain_test.js';
 import edgehighlight_test from './tests/edgehighlight_test.js';
 import hostmessages_test from './tests/hostmessages_test.js';
+import longreach_test from './tests/longreach_test.js';
 import modelopacity_test from './tests/modelopacity_test.js';
 
 process.chdir (path.resolve ());
@@ -65,4 +66,5 @@ parameterlist_test ();
 surfacestrain_test ();
 edgehighlight_test ();
 hostmessages_test ();
+longreach_test ();
 modelopacity_test ();

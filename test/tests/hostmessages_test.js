@@ -49,6 +49,7 @@ function CreateFakeOverlays ()
         calls : [],
         edgeResult : { ok : true, reason : null, edgeCount : 1 },
         strainResult : { ok : true, reason : null },
+        longReachResult : { ok : true, reason : null },
         colorsResult : { ok : true, reason : null, colorScale : {} },
         HasModel () {
             return this.model !== null;
@@ -59,6 +60,20 @@ function CreateFakeOverlays ()
         },
         ClearEdgeHighlights () {
             this.calls.push (['ClearEdgeHighlights']);
+        },
+        ShowLongReach (buffer, params) {
+            this.calls.push (['ShowLongReach', buffer, params.limit, params.showLongReach, params.color]);
+            let result = this.longReachResult;
+            return new Promise ((resolve) => {
+                setTimeout (() => resolve (result), 0);
+            });
+        },
+        SetLongReachParams (params) {
+            this.calls.push (['SetLongReachParams', params.limit, params.showLongReach, params.color]);
+            return { ok : true, reason : null };
+        },
+        ClearLongReach () {
+            this.calls.push (['ClearLongReach']);
         },
         ShowSurfaceStrain (buffer, params) {
             this.calls.push (['ShowSurfaceStrain', buffer, params.thresholds]);
@@ -290,6 +305,82 @@ describe ('Host Messages', function () {
         await Flush ();
         assert.deepStrictEqual (env.overlays.calls.slice (1), [['SetSurfaceStrainColors', OtherThresholds]]);
         assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.ok]), [[1, true], [2, true]]);
+    });
+});
+
+describe ('Host Messages Long Reach', function () {
+    const Buffer = new ArrayBuffer (8);
+
+    it ('Sends the long reach commands to the viewer', async function () {
+        let env = CreateHandler ();
+        LoadModel (env);
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4, showLongReach : false, color : '#ff0000' }, requestId : 1 });
+        await Flush ();
+        env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6, color : '#00ff00' }, requestId : 2 });
+        env.frameWindow.Send ({ type : HostMessageType.LongReachClear, requestId : 3 });
+        assert.deepStrictEqual (env.overlays.calls, [
+            ['ShowLongReach', Buffer, 4, false, '#ff0000'],
+            ['SetLongReachParams', 6, true, '#00ff00'],
+            ['ClearLongReach']
+        ]);
+        assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.command, result.ok]), [
+            [1, 'o3dv:long-reach:show', true],
+            [2, 'o3dv:long-reach:params', true],
+            [3, 'o3dv:long-reach:clear', true]
+        ]);
+    });
+
+    it ('Shows long reach sent before the model on load', async function () {
+        let env = CreateHandler ();
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4 }, requestId : 1 });
+        assert.deepStrictEqual (env.overlays.calls, []);
+        LoadModel (env);
+        await Flush ();
+        assert.deepStrictEqual ([env.overlays.calls, Results (env).map ((result) => [result.requestId, result.ok])], [
+            [['ShowLongReach', Buffer, 4, true, '#a21caf']],
+            [[1, true]]
+        ]);
+    });
+
+    it ('Applies params that arrive while the long reach is mapped', async function () {
+        let env = CreateHandler ();
+        LoadModel (env);
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4 }, requestId : 1 });
+        env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 2 });
+        await Flush ();
+        assert.deepStrictEqual (env.overlays.calls, [['ShowLongReach', Buffer, 4, true, '#a21caf'], ['SetLongReachParams', 6, true, '#a21caf']]);
+    });
+
+    it ('Answers a long reach cleared before the model, and reapplies the latest on every load', async function () {
+        let env = CreateHandler ();
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, requestId : 1 });
+        env.frameWindow.Send ({ type : HostMessageType.LongReachClear, requestId : 2 });
+        env.frameWindow.Send ({ type : HostMessageType.LongReachShow, buffer : Buffer, params : { limit : 4 }, requestId : 3 });
+        LoadModel (env);
+        await Flush ();
+        env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 4 });
+        LoadModel (env);
+        await Flush ();
+        assert.deepStrictEqual (env.overlays.calls, [
+            ['ClearLongReach'],
+            ['ShowLongReach', Buffer, 4, true, '#a21caf'],
+            ['SetLongReachParams', 6, true, '#a21caf'],
+            ['ShowLongReach', Buffer, 6, true, '#a21caf']
+        ]);
+        assert.deepStrictEqual (Results (env).map ((result) => [result.requestId, result.ok, result.reason]), [
+            [1, false, 'the long reach was cleared before the model loaded'],
+            [2, true, null],
+            [3, true, null],
+            [4, true, null],
+            [null, true, null]
+        ]);
+    });
+
+    it ('Refuses params with no long reach shown', function () {
+        let env = CreateHandler ();
+        LoadModel (env);
+        env.frameWindow.Send ({ type : HostMessageType.LongReachParams, params : { limit : 6 }, requestId : 1 });
+        assert.deepStrictEqual (Results (env).map ((result) => [result.ok, result.reason]), [[false, 'no long reach is shown']]);
     });
 });
 

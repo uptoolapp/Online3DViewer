@@ -20,7 +20,7 @@ Adding one (for example `#model=…$strain=<url>`) would be a separate change.
 ## Packaging
 
 - Rebuild the package tarball the same way as today, then update `online-3d-viewer.tgz` and its
-  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.13`) so the two
+  integrity hash in `pnpm-lock.yaml`. Bump the package `version` (currently `0.0.15`) so the two
   builds can be told apart.
 - `occt-import-js` stays at `0.0.22`. The `vite-plugin-static-copy` setup, the `/occt-import-js/`
   location and `OV.SetExternalLibLocation ("occt-import-js", "/occt-import-js/")` don't change.
@@ -311,6 +311,65 @@ if (!result.ok) {
 }
 ```
 
+## Long reach
+
+Paints the findings of the long reach analysis on the part: every face of a group of faces too long
+under a length-to-diameter limit, in one colour. Deep drilled holes are not painted. The host
+fetches `long_reach.bin` (the API's `long_reach.surface_url`) and passes its content. Its layout and
+reference reader are `freecad/app/long_reach_surface.py`: the same envelope as `surface_strain.bin`
+(magic `UPLR`, version, JSON header, packed arrays), a coarse mesh of the part in metres, each
+triangle's face, and each face's findings. The header carries the groups and the holes.
+
+The viewer maps the file onto the model **by geometry**, never by face number. Each BREP face of the
+model samples points inside its own triangles against the file's mesh, with the normal guard, and
+takes the findings of the file's face most of its samples land on. The same frame check as the
+strain surface runs first, against the header's `bbox_*` and `mesh_size_m`. The model must be the
+analysed STEP, unmoved (preconditions 1, 2 and 5 above apply).
+
+The long reach faces are a layer of their own, independent of the surface strain and the edge
+highlights. They are drawn over the model and the surface strain with a polygon offset that pulls
+them in front of the surface they cover by one depth slope and one unit, so they don't flicker on
+faces seen at a steep angle, and edge highlights stay on top of them. With
+`SetModelOpacity (< 1)` they stay opaque, so the ones behind the faded part show through it.
+Per-mesh `SetMeshesVisibility` hides the faces of a hidden mesh. A new model, `Destroy ()` and
+`GetViewer ().Clear ()` remove them.
+
+The viewer collects the triangles of every face that belongs to a group once, when the file is
+mapped, ordered by the group's `length_to_diameter`. A limit only chooses how many of them are drawn,
+so changing it never maps or collects the faces again.
+
+### `EmbeddedViewer.ShowLongReach (buffer, params?) → Promise<LongReachResult>`
+
+- `params`: optional `OV.LongReachParams`.
+
+  | Field | Default | Meaning |
+  |---|---|---|
+  | `limit` | `3` | A group is too long when its `length_to_diameter` is above this. A positive number. |
+  | `showLongReach` | `true` | Paint the faces of too-long groups; `false` keeps the mapping but paints nothing. |
+  | `color` | `#a21caf` | Colour of too-long faces, `"#rrggbb"` or `"rrggbb"`. |
+  | `frameToleranceFactor` | `2.0` | Allowed bounding box difference, in display mesh sizes. |
+  | `maxDistanceFactor` | `2.0` | A sample farther than this many display mesh sizes from the file's mesh finds nothing. |
+  | `maxFailedFraction` | `0.02` | The mapping fails if more samples than this find nothing. |
+
+- It never rejects. On failure `ok` is false, `reason` says why, and nothing is painted; the
+  previous paint stays. A new model or `ClearLongReach` before the mapping runs resolves with
+  `ok: false`.
+- `LongReachResult`: `ok`, `reason`, `header` (whenever decoding succeeded), `unit`, and `counts`:
+  `{ tooLongFaces, tooLongGroups }` under `params.limit`, counted from the file, so they match the
+  API's `groups`.
+
+### `EmbeddedViewer.SetLongReachParams (params) → LongReachResult`
+
+Paints the shown findings under new params (another limit, `showLongReach`, another `color`)
+**without mapping or collecting the faces again**: it only changes how many triangles are drawn, so
+call it on every slider move. The mapping tolerances only apply to `ShowLongReach`. On failure the
+current paint stays. Without shown findings it returns `ok: false` with `no long reach is shown`.
+
+### `EmbeddedViewer.ClearLongReach ()` and `HasLongReach () → boolean`
+
+`ClearLongReach` removes what `ShowLongReach` painted and cancels a pending mapping. `HasLongReach`
+says whether findings are shown.
+
 ## Model opacity
 
 `EmbeddedViewer.SetModelOpacity (opacity) → { ok, reason }` fades the part so the edge highlights
@@ -329,6 +388,9 @@ Messages are plain objects. Each command may carry a `requestId`, echoed in its 
 |---|---|---|
 | `o3dv:edge-highlights:show` | `edges: { polyline: [x,y,z][], color, width? }[]` (mm) | `ShowEdgeHighlights` |
 | `o3dv:edge-highlights:clear` | | `ClearEdgeHighlights` |
+| `o3dv:long-reach:show` | `buffer: ArrayBuffer` (send it as a transferable), `params?: { limit?, showLongReach? }` | `ShowLongReach` |
+| `o3dv:long-reach:params` | `params: { limit?, showLongReach? }` | `SetLongReachParams` |
+| `o3dv:long-reach:clear` | | `ClearLongReach` |
 | `o3dv:surface-strain:show` | `buffer: ArrayBuffer` (send it as a transferable), `thresholds?` | `ShowSurfaceStrain` |
 | `o3dv:surface-strain:colors` | `thresholds` | `SetSurfaceStrainColors` |
 | `o3dv:surface-strain:clear` | | `ClearSurfaceStrain` |
@@ -343,14 +405,17 @@ Messages are plain objects. Each command may carry a `requestId`, echoed in its 
 
 - **Origin.** Only messages with `event.source === window.parent` and `event.origin` equal to the
   website's own origin are handled. Replies are posted to that origin. Anything else is ignored.
-- **Stored state.** The website keeps the last requested edges and strain (buffer and thresholds)
+- **Stored state.** The website keeps the last requested edges, long reach (buffer and params) and strain (buffer and
+  thresholds)
   and reapplies them after every model load, including one started from the website's own UI. A
   reapply posts a result with `requestId: null`. A failed show keeps the previous drawing, as in
   the engine; the parent decides whether to clear.
 - **Before the model.** A command sent before a model is shown is answered when it is applied on
   load. If a later show or clear of the same overlay arrives first, it is answered with `ok: false`.
   `colors` without any requested strain fails at once; with a pending strain it gets the strain's
-  result, and the new colors are used.
+  result, and the new colors are used. `o3dv:long-reach:params` behaves the same way against a
+  requested long reach. Only the limit and `showLongReach` cross the boundary; the colour and the
+  tolerances stay the viewer's defaults.
 - **Model opacity.** `o3dv:model-opacity:set` is a setting, not an overlay. It is answered at
   once and kept across model loads. See [`model-opacity-contract.md`](model-opacity-contract.md).
 - **Toolbar.** The overlays stay through camera moves, measure mode and settings (edge display,
@@ -365,6 +430,15 @@ Messages are plain objects. Each command may carry a `requestId`, echoed in its 
     typo had left unset. Models with edges or lines sit very slightly further back in depth.
   - While edge highlights are shown, the model's meshes use a polygon offset factor of up to
     `ceil(width / 2 · √2) + 1` instead of 1. The factor goes back to 1 when the highlights are cleared.
+- **Long reach** (`0.0.15`) is non-breaking: nothing is painted until `ShowLongReach` or
+  `o3dv:long-reach:show` is used. The index-based face highlights of the `0.0.14` pre-release
+  (`ShowFaceHighlights`, `o3dv:face-highlights:*`) are removed, long reach maps faces by geometry
+  instead.
+- **Analysis helpers** (`0.0.15`). The helpers the analysis overlays share moved to
+  `source/engine/analysis/` and lost their strain names: `MatchAnalysisFrame`,
+  `CheckAnalysisFrameAtScale`, `AnalysisFrameResult`, `AnalysisUnitCandidates`,
+  `AnalysisUnitToString` and `IsAnalysisSourceFile`. `OV.IsSurfaceStrainSourceFile` stays as an
+  alias. `GetModelFaces` and `CollectFaceGeometry` are exported.
 - **Model opacity** (`0.0.13`) is non-breaking: the default is `1`, and nothing changes until
   `SetModelOpacity` or `o3dv:model-opacity:set` is used.
 - **Versioning.** Only artifact version `1` is accepted. A newer artifact version resolves with

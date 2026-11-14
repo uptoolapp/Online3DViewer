@@ -8,6 +8,7 @@ import { Navigation } from './navigation.js';
 import { ShadingModel } from './shadingmodel.js';
 import { ViewerModel, ViewerMainModel } from './viewermodel.js';
 import { ViewerEdgeHighlight } from './vieweredgehighlight.js';
+import { ViewerLongReach } from './viewerlongreach.js';
 import { ViewerSurfaceStrain } from './viewersurfacestrain.js';
 
 import * as THREE from 'three';
@@ -181,6 +182,8 @@ export class Viewer
         this.extraModel = null;
         this.surfaceStrainModel = null;
         this.surfaceStrain = null;
+        this.longReachModel = null;
+        this.longReach = null;
         this.edgeHighlightModel = null;
         this.edgeHighlight = null;
         this.camera = null;
@@ -220,6 +223,7 @@ export class Viewer
         this.mainModel = new ViewerMainModel (this.scene);
         this.extraModel = new ViewerModel (this.scene);
         this.surfaceStrainModel = new ViewerModel (this.scene);
+        this.longReachModel = new ViewerModel (this.scene);
         this.edgeHighlightModel = new ViewerModel (this.scene);
 
         this.InitNavigation ();
@@ -247,6 +251,8 @@ export class Viewer
     {
         let newEdgeSettings = edgeSettings.Clone ();
         this.mainModel.SetEdgeSettings (newEdgeSettings);
+        // Showing edges turns the polygon offset of the meshes on or off.
+        this.UpdatePolygonOffsetFactor ();
         // Generated edges copy the visibility of their mesh, which the surface strain overlay may
         // have hidden, so apply the visibility again.
         this.UpdateMeshesVisibility ();
@@ -465,6 +471,8 @@ export class Viewer
         this.extraModel.Clear ();
         this.surfaceStrainModel.Clear ();
         this.surfaceStrain = null;
+        this.longReachModel.Clear ();
+        this.longReach = null;
         this.edgeHighlightModel.Clear ();
         this.edgeHighlight = null;
         this.UpdatePolygonOffsetFactor ();
@@ -518,6 +526,55 @@ export class Viewer
     }
 
     /**
+     * Paints the long reach faces over the model and the surface strain overlay, replacing the
+     * shown ones.
+     * @param {PreparedLongReach[]} prepared Faces of PrepareLongReach.
+     * @param {number} limit Faces of groups above this length to diameter are painted.
+     * @param {boolean} show False paints nothing.
+     * @param {number[]} color Float r, g, b in 0..1.
+     */
+    SetLongReach (prepared, limit, show, color)
+    {
+        this.longReachModel.Clear ();
+        this.longReach = new ViewerLongReach (prepared);
+        this.longReachModel.SetRootObject (this.longReach.CreateThreeObject (this.shadingModel.type));
+        this.longReach.SetDisplay (limit, show, color);
+        this.UpdatePolygonOffsetFactor ();
+        this.UpdateMeshesVisibility ();
+        this.Render ();
+    }
+
+    /**
+     * Chooses the painted long reach faces and their color, without collecting them again.
+     * @param {number} limit Faces of groups above this length to diameter are painted.
+     * @param {boolean} show False paints nothing.
+     * @param {number[]} color Float r, g, b in 0..1.
+     */
+    SetLongReachDisplay (limit, show, color)
+    {
+        if (this.longReach === null) {
+            return;
+        }
+        this.longReach.SetDisplay (limit, show, color);
+        this.Render ();
+    }
+
+    HasLongReach ()
+    {
+        return this.longReach !== null;
+    }
+
+    ClearLongReach ()
+    {
+        if (this.longReach === null) {
+            return;
+        }
+        this.longReachModel.Clear ();
+        this.longReach = null;
+        this.Render ();
+    }
+
+    /**
      * Shows prepared edge highlights on top of the model, replacing the shown ones.
      * @param {PreparedEdgeHighlight[]} prepared Result of PrepareEdgeHighlights.
      */
@@ -566,12 +623,16 @@ export class Viewer
                 obj.material.polygonOffsetFactor = factor;
             }
         });
+        if (this.longReach !== null) {
+            this.longReach.SetPolygonOffset (this.mainModel.NeedsPolygonOffset () ? factor : 0);
+        }
     }
 
     /**
      * Fades the model, the surface strain overlay and highlighted meshes, and draws the edge
-     * highlights on top of them, so edges behind the model show through it. It is a setting like
-     * the edge settings: it stays through model loads and overlay changes.
+     * highlights on top of them, so edges behind the model show through it. The long reach faces
+     * stay opaque, so painted faces behind the model show through it too. It is a setting like the
+     * edge settings: it stays through model loads and overlay changes.
      * @param {number} opacity In (0, 1], 1 shows the model solid.
      * @returns {boolean} False if opacity is out of range, and nothing changes.
      */
@@ -596,7 +657,8 @@ export class Viewer
      * material's original values, so it can run again any time, and a material shared by many
      * meshes, or a highlighted mesh's own materials, are never faded twice. Faded surfaces don't
      * write depth, so the edge highlights behind them pass the depth test. The edge highlights
-     * draw after them, otherwise the faded surfaces would blend over the lines and dim them.
+     * draw after them, otherwise the faded surfaces would blend over the lines and dim them. The
+     * long reach faces are never faded, they draw before the faded surfaces like any opaque mesh.
      */
     UpdateModelOpacity ()
     {
@@ -694,6 +756,11 @@ export class Viewer
         this.surfaceStrainModel.Traverse ((obj) => {
             if (obj.isMesh) {
                 obj.visible = !hiddenMeshInstances.has (obj.userData.surfaceStrain.meshInstanceId.GetKey ());
+            }
+        });
+        this.longReachModel.Traverse ((obj) => {
+            if (obj.isMesh) {
+                obj.visible = !hiddenMeshInstances.has (obj.userData.longReach.meshInstanceId.GetKey ());
             }
         });
     }

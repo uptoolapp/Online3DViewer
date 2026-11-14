@@ -44,8 +44,8 @@ Two points drive the design:
         log10Strain, driving            │
         │                               │
         ▼                               ▼
-   ② MatchSurfaceStrainFrame(header, GetBoundingBox(model), model.GetUnit())
-      bbox_m × scale(m→mm = 1000)  vs  viewer bbox     surfacestrainframe.js
+   ② MatchAnalysisFrame(header, GetBoundingBox(model), model.GetUnit())
+      bbox_m × scale(m→mm = 1000)  vs  viewer bbox     ../analysis/analysisframe.js
       |Δsize|, |Δmin| ≤ 2·mesh_size  ──✗──► {ok:false, reason:"unit mismatch…"}
         │ ✓ unit = mm                                  (nothing is painted)
         ▼
@@ -60,7 +60,7 @@ Two points drive the design:
       │                      outward normals precomputed, plus the strain
       │
       └─ for each MeshInstance ─► for each BREP face range:
-            CollectFaceGeometry  (apply node transform, per-face normals)
+            CollectFaceGeometry  (apply node transform, per-face normals)   ../analysis/analysisfaces.js
                   │
                   ▼
             RefineTriangles      longest-edge bisection ≤ meshSize   surfacestrainrefine.js
@@ -116,9 +116,10 @@ A mesh without face ranges (any non-OCCT importer) is treated as a single face.
 
 Positions are still in **metres** here. Strain is kept as `log10` from here on.
 
-### ② Frame and unit check: `surfacestrainframe.js`
+### ② Frame and unit check: `../analysis/analysisframe.js`
 
-This step runs before any conversion or mapping. It uses the bin's `bbox_min_m`, `bbox_size_m` and
+This step runs before any conversion or mapping, and is shared with long reach, whose header carries
+the same keys. It uses the bin's `bbox_min_m`, `bbox_size_m` and
 `mesh_size_m`:
 
 - `scale = convertUnit(1 m → model.GetUnit())`, which is 1000 for STEP.

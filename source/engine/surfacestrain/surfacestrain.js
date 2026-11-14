@@ -1,7 +1,7 @@
+import { IsAnalysisSourceFile, MatchAnalysisFrame } from '../analysis/analysisframe.js';
 import { GetBoundingBox } from '../model/modelutils.js';
 import { CreateSurfaceStrainColorScale, SurfaceStrainColorRange } from './surfacestraincolor.js';
 import { DecodeSurfaceStrain } from './surfacestraindecoder.js';
-import { MatchSurfaceStrainFrame } from './surfacestrainframe.js';
 import { MapSurfaceStrainToModel, SurfaceStrainMappingParams } from './surfacestrainsampler.js';
 import { ConvertSurfaceStrainToUnit } from './surfacestrainunits.js';
 
@@ -81,7 +81,7 @@ export function PrepareSurfaceStrain (model, buffer, params)
 
     // The artifact is in metres, the model is in its own unit (mm for STEP). Find and verify the
     // unit before any mapping, a wrongly scaled artifact must never be painted.
-    let frame = MatchSurfaceStrainFrame (data.header, viewerBox, model.GetUnit (), params.frameToleranceFactor);
+    let frame = MatchAnalysisFrame (data.header, viewerBox, model.GetUnit (), params.frameToleranceFactor);
     if (!frame.ok) {
         result.reason = frame.reason;
         return result;
@@ -103,4 +103,16 @@ export function PrepareSurfaceStrain (model, buffer, params)
     result.mapping = mapping;
     result.colorScale = colorScale;
     return result;
+}
+
+/**
+ * Checks the SHA-256 of the loaded model file against the analysis response's input_sha256. Same as
+ * {@link IsAnalysisSourceFile}, kept for hosts that already call it.
+ * @param {ArrayBuffer} fileContent Content of the model file loaded to the viewer.
+ * @param {string} expectedSha256 Hex encoded SHA-256 of the analysed STEP.
+ * @returns {Promise<boolean>}
+ */
+export function IsSurfaceStrainSourceFile (fileContent, expectedSha256)
+{
+    return IsAnalysisSourceFile (fileContent, expectedSha256);
 }

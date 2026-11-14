@@ -281,13 +281,13 @@ describe ('Surface Strain Frame', function () {
     let viewerBox = OV.GetBoundingBox (CreateViewerBox (BoxMinMm, BoxSizeMm, OV.Unit.Millimeter));
 
     it ('Metre artifact matches millimetre model', function () {
-        let result = OV.MatchSurfaceStrainFrame (header, viewerBox, OV.Unit.Millimeter);
+        let result = OV.MatchAnalysisFrame (header, viewerBox, OV.Unit.Millimeter);
         assert.ok (result.ok, result.reason);
         assert.strictEqual (result.unit, OV.Unit.Millimeter);
     });
 
     it ('Infers the unit of a model without unit', function () {
-        let result = OV.MatchSurfaceStrainFrame (header, viewerBox, OV.Unit.Unknown);
+        let result = OV.MatchAnalysisFrame (header, viewerBox, OV.Unit.Unknown);
         assert.ok (result.ok);
         assert.strictEqual (result.unit, OV.Unit.Millimeter);
     });
@@ -298,14 +298,14 @@ describe ('Surface Strain Frame', function () {
             bbox_size_m : BoxSizeMm,
             mesh_size_m : 2.0
         });
-        let result = OV.MatchSurfaceStrainFrame (wrongHeader, viewerBox, OV.Unit.Millimeter);
+        let result = OV.MatchAnalysisFrame (wrongHeader, viewerBox, OV.Unit.Millimeter);
         assert.ok (!result.ok);
         assert.ok (result.reason.indexOf ('unit mismatch') !== -1, result.reason);
     });
 
     it ('Detects a moved model', function () {
         let movedBox = OV.GetBoundingBox (CreateViewerBox ([BoxMinMm[0] + 10.0, BoxMinMm[1], BoxMinMm[2]], BoxSizeMm, OV.Unit.Millimeter));
-        let result = OV.MatchSurfaceStrainFrame (header, movedBox, OV.Unit.Millimeter);
+        let result = OV.MatchAnalysisFrame (header, movedBox, OV.Unit.Millimeter);
         assert.ok (!result.ok);
         assert.ok (result.reason.indexOf ('position differs on x') !== -1, result.reason);
     });
